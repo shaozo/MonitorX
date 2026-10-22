@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "id": "checkout-flow",
+  "name": "Checkout flow checks",
+  "rules": [
+    {
+      "id": "checkout_requires_login",
+      "name": "Checkout requires login",
+      "type": "DEPENDENCY",
+      "severity": "CRITICAL",
+      "message": "Checkout started before login completed",
+      "solution": "Emit LOGIN_COMPLETED after authentication succeeds.",
+      "prerequisite": { "name": "LOGIN_COMPLETED" },
+      "trigger": { "name": "CHECKOUT_STARTED" }
+    },
+    {
+      "id": "duplicate_submit",
+      "name": "Duplicate checkout submission",
+      "type": "RATE",
+      "severity": "WARNING",
+      "message": "Checkout was submitted repeatedly",
+      "solution": "Disable the submit action until the request completes.",
+      "matcher": { "name": "CHECKOUT_SUBMITTED" },
+      "windowMs": 3000,
+      "maxCount": 1,
+      "correlationAttribute": "orderId"
+    }
+  ]
+}

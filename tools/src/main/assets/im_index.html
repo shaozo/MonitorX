@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>抓包助手 - IM消息监控与数据大屏</title>
+    <script src="https://cdn.staticfile.org/jquery/2.1.1/jquery.min.js"></script>
+    <script src="https://unpkg.com/dayjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdn.bootcdn.net/ajax/libs/jquery-jsonview/1.2.3/jquery.jsonview.css" rel="stylesheet">
+    <script src="https://cdn.bootcdn.net/ajax/libs/jquery-jsonview/1.2.3/jquery.jsonview.js"></script>
+    <style>
+        :root {
+            --bg: #f0f2f5;
+            --surface: #ffffff;
+            --border: #e2e6ed;
+            --text: #1e2329;
+            --text-secondary: #707a8a;
+            --text-muted: #aeb4bc;
+            --primary: #3772ff;
+            --primary-light: #e8f0fe;
+            --success: #02c076;
+            --warning: #f0b90b;
+            --danger: #e5493a;
+            --info: #89b4fa;
+            --radius: 8px;
+            --radius-sm: 5px;
+            --shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+            --font-mono: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', ui-monospace, monospace;
+            --transition: 150ms ease;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px; color: var(--text); background: var(--bg);
+            min-height: 100vh; display: flex; flex-direction: column;
+        }
+
+        /* ── Header Nav ── */
+        nav {
+            height: 48px; padding: 0 20px; display: flex; align-items: center; gap: 20px;
+            background: var(--surface); border-bottom: 1px solid var(--border);
+            position: sticky; top: 0; z-index: 100; flex-shrink: 0;
+        }
+        nav .logo { font-weight: 700; font-size: 16px; color: var(--text); letter-spacing: -.3px; }
+        nav a {
+            color: var(--text-secondary); text-decoration: none; font-size: 13px;
+            padding: 4px 10px; border-radius: var(--radius-sm); transition: var(--transition);
+        }
+        nav a:hover { color: var(--text); background: var(--bg); }
+        nav a.active { color: var(--primary); background: var(--primary-light); font-weight: 600; }
+
+        .main-area { padding: 16px 20px 32px; display: flex; flex-direction: column; gap: 16px; flex: 1; }
+
+        /* ── Controls Toolbar ── */
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+        .toolbar-card { padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+        .toolbar-group { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+        .form-control {
+            height: 32px; padding: 0 10px; font-size: 13px; border: 1px solid var(--border);
+            border-radius: var(--radius-sm); outline: none; background: #fff; color: var(--text);
+            transition: var(--transition);
+        }
+        .form-control:focus { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-light); }
+
+        .btn {
+            height: 32px; padding: 0 14px; font-size: 13px; font-weight: 600; border-radius: var(--radius-sm);
+            border: 0; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+            transition: var(--transition); text-decoration: none;
+        }
+        .btn-primary { background: var(--primary); color: #fff; }
+        .btn-primary:hover { opacity: .9; }
+        .btn-success { background: var(--success); color: #fff; }
+        .btn-success:hover { opacity: .9; }
+        .btn-danger { background: var(--danger); color: #fff; }
+        .btn-danger:hover { opacity: .9; }
+        .btn-secondary { background: var(--bg); color: var(--text-secondary); border: 1px solid var(--border); }
+        .btn-secondary:hover { background: #e2e6ed; color: var(--text); }
+        .btn-xs { height: 24px; padding: 0 8px; font-size: 11px; }
+
+        .checkbox-label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary); cursor: pointer; user-select: none; }
+
+        /* ── Dashboard Grid ── */
+        .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+        .stat-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px; display: flex; flex-direction: column; gap: 4px; box-shadow: var(--shadow); }
+        .stat-box .title { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+        .stat-box .value { font-size: 22px; font-weight: 700; color: var(--text); font-family: var(--font-mono); }
+        .stat-box .sub { font-size: 11px; color: var(--text-muted); }
+
+        .charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 14px; }
+        .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; height: 290px; display: flex; flex-direction: column; box-shadow: var(--shadow); }
+        .chart-card .chart-header { font-size: 13px; font-weight: 700; color: var(--text-secondary); margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
+        .chart-container { flex: 1; position: relative; width: 100%; height: 100%; min-height: 0; }
+
+        /* ── IM Item Cards ── */
+        .im-list { display: flex; flex-direction: column; gap: 10px; }
+        .im-item { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+        .im-header {
+            padding: 10px 14px; background: #fafbfc; border-bottom: 1px solid transparent; cursor: pointer;
+            display: flex; align-items: center; justify-content: space-between; user-select: none; transition: var(--transition);
+        }
+        .im-header:hover { background: var(--primary-light); }
+        .im-header-left { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+        .im-type-badge {
+            background: var(--primary-light); color: var(--primary); font-weight: 700; font-size: 11px;
+            padding: 2px 8px; border-radius: 4px; font-family: var(--font-mono); flex-shrink: 0;
+        }
+        .im-time { font-size: 12px; color: var(--text-secondary); font-family: var(--font-mono); flex-shrink: 0; }
+        .im-size { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); flex-shrink: 0; }
+        .im-summary { font-size: 13px; color: var(--text); font-family: var(--font-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; margin-left: 6px; }
+
+        .im-body { padding: 12px 14px; border-top: 1px solid var(--border); background: #fff; display: none; }
+        .im-item.expanded .im-body { display: block; }
+        .im-item.expanded .im-header { border-bottom-color: var(--border); background: #f4f7fc; }
+
+        .im-actions { display: flex; gap: 8px; margin-bottom: 10px; }
+        .json-container { background: #f8f9fa; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px; font-family: var(--font-mono); font-size: 12px; word-break: break-all; overflow-x: auto; max-height: 400px; }
+
+        .empty-state { text-align: center; padding: 40px 20px; color: var(--text-muted); }
+    </style>
+</head>
+<body>
+
+<nav>
+    <span class="logo">抓包助手</span>
+    <a href="index">网络数据</a>
+    <a class="active" href="im_index">IM消息</a>
+    <a href="sp_index">本地文件</a>
+    <a href="api_debug_index">接口调试</a>
+    <a href="performance_index">📊 性能与诊断</a>
+</nav>
+
+<div class="main-area">
+    <!-- Controls Toolbar -->
+    <div class="card toolbar-card">
+        <div class="toolbar-group">
+            <button type="button" id="query" class="btn btn-success">🔄 刷新</button>
+            <button type="button" id="clean" class="btn btn-danger">🗑️ 清空IM记录</button>
+            <label class="checkbox-label">
+                <input id="isAutoFetch" type="checkbox"> 开启自动监听
+            </label>
+        </div>
+        <div class="toolbar-group">
+            <label style="font-size: 13px; color: var(--text-secondary);">展示数量
+                <select id="limit" class="form-control" style="width: 90px; display: inline-block; margin-left: 4px;">
+                    <option>100</option>
+                    <option>300</option>
+                    <option>500</option>
+                    <option selected>1000</option>
+                    <option>3000</option>
+                </select>
+            </label>
+
+            <input id="typeFilter" type="number" class="form-control" style="width: 120px;" placeholder="Filter Type...">
+            <button type="button" id="typeQuery" class="btn btn-primary">按Type过滤</button>
+            <button type="button" id="toggleDashboard" class="btn btn-secondary btn-xs">📊 折叠大屏</button>
+        </div>
+    </div>
+
+    <!-- Visualization Dashboard -->
+    <div id="dashboardSection" style="display: flex; flex-direction: column; gap: 14px;">
+        <!-- KPI Stat Boxes -->
+        <div class="dashboard-grid">
+            <div class="stat-box">
+                <div class="title">💬 接收消息总数</div>
+                <div class="value" id="kpiTotalCount">0</div>
+                <div class="sub">条 IM 记录</div>
+            </div>
+            <div class="stat-box">
+                <div class="title">⚡ 消息流量总消耗</div>
+                <div class="value" id="kpiTotalTraffic">0 B</div>
+                <div class="sub">UTF-8 字符传输量</div>
+            </div>
+            <div class="stat-box">
+                <div class="title">🏷️ 活跃消息 Type 数</div>
+                <div class="value" id="kpiActiveTypes">0</div>
+                <div class="sub">不同消息协议类型</div>
+            </div>
+            <div class="stat-box">
+                <div class="title">📦 单条平均消息体</div>
+                <div class="value" id="kpiAvgPayload">0 B</div>
+                <div class="sub">Payload 均值大小</div>
+            </div>
+        </div>
+
+        <!-- Charts Grid -->
+        <div class="charts-grid">
+            <div class="chart-card">
+                <div class="chart-header">
+                    <span>📈 消息频次与流量趋势</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="chartTrend"></canvas>
+                </div>
+            </div>
+            <div class="chart-card">
+                <div class="chart-header">
+                    <span>🍩 消息 Type 数量与流量分布</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="chartTypeDist"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- IM List Area -->
+    <div id="root_list_div" class="im-list"></div>
+</div>
+
+<script>
+    var lastFetchId = 0;
+    var autoFetchRequest;
+    var limit = 1000;
+    var typeFilter = "";
+    var currentMessages = [];
+    var expandedImIds = new Set(); // 保存用户展开的 IM 消息卡片 ID
+    var chartTrendInstance = null;
+    var chartTypeDistInstance = null;
+
+    $(document).ready(function () {
+        limit = $("#limit").val();
+
+        $("#query").on("click", function () { query(); });
+        $("#clean").on("click", function () {
+            cancelAutoFetch();
+            $("#isAutoFetch").prop("checked", false);
+            lastFetchId = 0;
+            expandedImIds.clear();
+            $.get("/imClean", function () {
+                currentMessages = [];
+                renderUI();
+            }).error(function () {
+                errorView();
+            });
+        });
+
+        $("#isAutoFetch").change(function () {
+            if ($(this).is(':checked')) {
+                currentMessages = [];
+                expandedImIds.clear();
+                renderUI();
+                autoFetch();
+            } else {
+                cancelAutoFetch();
+            }
+        });
+
+        $("#limit").change(function () {
+            limit = $(this).val();
+            query();
+        });
+
+        $("#typeFilter").on("input", function () {
+            typeFilter = $.trim($(this).val());
+        });
+
+        $("#typeQuery").on("click", function () {
+            typeFilter = $.trim($("#typeFilter").val());
+            query();
+        });
+
+        $("#toggleDashboard").on("click", function () {
+            $("#dashboardSection").slideToggle(200);
+            var isHidden = $("#dashboardSection").is(":hidden");
+            $(this).text(isHidden ? "📊 展开大屏" : "📊 折叠大屏");
+        });
+
+        initCharts();
+        query();
+    });
+
+    function query() {
+        cancelAutoFetch();
+        $("#isAutoFetch").prop("checked", false);
+        lastFetchId = 0;
+        $.get("/imQuery?limit=" + limit + "&type=" + encodeURIComponent(typeFilter), function (result) {
+            processData(result, true);
+        }).error(function () {
+            errorView();
+        });
+    }
+
+    function autoFetch() {
+        cancelAutoFetch();
+        autoFetchRequest = $.ajax({
+            timeout: 100000,
+            url: "/imAutoFetch?lastFetchId=" + lastFetchId + "&type=" + encodeURIComponent(typeFilter),
+            type: "get",
+            success: function (result) {
+                processData(result, false);
+            },
+            complete: function (xhr, status) {
+                if (status == "success" || status == "timeout") {
+                    autoFetch();
+                }
+            }
+        });
+    }
+
+    function processData(result, isReset) {
+        if (!result || result.length <= 0 || result === "[]") {
+            if (isReset) {
+                currentMessages = [];
+                expandedImIds.clear();
+                renderUI();
+            }
+            return;
+        }
+        try {
+            var jsonObj = JSON.parse(result);
+            if (jsonObj.code !== 200 || !jsonObj.data || jsonObj.data.length <= 0) {
+                if (isReset) {
+                    currentMessages = [];
+                    expandedImIds.clear();
+                    renderUI();
+                }
+                return;
+            }
+            var newItems = jsonObj.data;
+            if (newItems.length > 0) {
+                lastFetchId = newItems[0].id;
+            }
+
+            if (isReset) {
+                currentMessages = newItems;
+            } else {
+                var existingIds = new Set(currentMessages.map(function(m){ return m.id; }));
+                var uniqueNew = newItems.filter(function(m){ return !existingIds.has(m.id); });
+                currentMessages = uniqueNew.concat(currentMessages);
+            }
+            renderUI();
+        } catch (e) {
+            console.error("Parse IM data error", e);
+        }
+    }
+
+    function renderUI() {
+        renderList();
+        updateDashboard();
+    }
+
+    function formatBytes(bytes) {
+        if (!bytes || bytes <= 0) return "0 B";
+        var k = 1024;
+        var sizes = ['B', 'KB', 'MB', 'GB'];
+        var i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    function getByteLen(val) {
+        if (!val) return 0;
+        return new TextEncoder().encode(val).length;
+    }
+
+    function updateDashboard() {
+        var totalCount = currentMessages.length;
+        var totalBytes = 0;
+        var typeMap = {};
+
+        currentMessages.forEach(function(item) {
+            var len = getByteLen(item.content);
+            totalBytes += len;
+            var tKey = "TYPE " + item.type;
+            if (!typeMap[tKey]) {
+                typeMap[tKey] = { count: 0, bytes: 0 };
+            }
+            typeMap[tKey].count++;
+            typeMap[tKey].bytes += len;
+        });
+
+        var activeTypes = Object.keys(typeMap).length;
+        var avgPayload = totalCount > 0 ? Math.round(totalBytes / totalCount) : 0;
+
+        $("#kpiTotalCount").text(totalCount);
+        $("#kpiTotalTraffic").text(formatBytes(totalBytes));
+        $("#kpiActiveTypes").text(activeTypes);
+        $("#kpiAvgPayload").text(formatBytes(avgPayload));
+
+        var sortedTypes = Object.keys(typeMap).sort(function(a,b){ return typeMap[b].count - typeMap[a].count; });
+        var topTypes = sortedTypes.slice(0, 5);
+        var topCounts = topTypes.map(function(k) { return typeMap[k].count; });
+
+        var otherCount = 0;
+        for (var i = 5; i < sortedTypes.length; i++) {
+            otherCount += typeMap[sortedTypes[i]].count;
+        }
+        if (otherCount > 0) {
+            topTypes.push("其他 Type");
+            topCounts.push(otherCount);
+        }
+
+        if (chartTypeDistInstance) {
+            chartTypeDistInstance.data.labels = topTypes.length > 0 ? topTypes : ["无数据"];
+            chartTypeDistInstance.data.datasets[0].data = topCounts.length > 0 ? topCounts : [0];
+            chartTypeDistInstance.update();
+        }
+
+        var timeBuckets = {};
+        currentMessages.slice().reverse().forEach(function(item) {
+            var timeStr = dayjs(item.timestamp).format('HH:mm:ss');
+            timeBuckets[timeStr] = (timeBuckets[timeStr] || 0) + 1;
+        });
+
+        var trendLabels = Object.keys(timeBuckets).slice(-15);
+        var trendData = trendLabels.map(function(k) { return timeBuckets[k]; });
+
+        if (chartTrendInstance) {
+            chartTrendInstance.data.labels = trendLabels.length > 0 ? trendLabels : ["--:--"];
+            chartTrendInstance.data.datasets[0].data = trendData.length > 0 ? trendData : [0];
+            chartTrendInstance.update();
+        }
+    }
+
+    function initCharts() {
+        var ctxTrend = document.getElementById('chartTrend').getContext('2d');
+        chartTrendInstance = new Chart(ctxTrend, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: '消息频次 (条)',
+                    data: [],
+                    borderColor: '#3772ff',
+                    backgroundColor: 'rgba(55, 114, 255, 0.08)',
+                    fill: true,
+                    tension: 0.3,
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { display: false } },
+                    y: { beginAtZero: true, ticks: { precision: 0 } }
+                }
+            }
+        });
+
+        var ctxType = document.getElementById('chartTypeDist').getContext('2d');
+        chartTypeDistInstance = new Chart(ctxType, {
+            type: 'doughnut',
+            data: {
+                labels: [],
+                datasets: [{
+                    data: [],
+                    backgroundColor: ['#3772ff', '#02c076', '#f0b90b', '#e5493a', '#89b4fa', '#a6e3a1', '#f9e2af', '#fab387']
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                layout: {
+                    padding: { top: 6, bottom: 6, left: 6, right: 6 }
+                },
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: {
+                            boxWidth: 10,
+                            font: { size: 11 },
+                            padding: 6
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function renderList() {
+        var root = $("#root_list_div");
+        root.empty();
+
+        if (currentMessages.length === 0) {
+            emptyView();
+            return;
+        }
+
+        currentMessages.forEach(function(item) {
+            var len = getByteLen(item.content);
+            var sizeStr = formatBytes(len);
+            var itemTime = dayjs(item.timestamp).format('YYYY-MM-DD HH:mm:ss');
+            var jsonViewId = "jsonView" + item.id;
+            var copyButtonId = "copyBtn" + item.id;
+            var isExpanded = expandedImIds.has(item.id);
+
+            var html = '<div class="im-item ' + (isExpanded ? 'expanded' : '') + '" id="im_item_' + item.id + '">';
+            html += '  <div class="im-header" onclick="toggleItem(' + item.id + ')">';
+            html += '    <div class="im-header-left">';
+            html += '      <span class="im-type-badge">TYPE ' + item.type + '</span>';
+            html += '      <span class="im-time">' + itemTime + '</span>';
+            html += '      <span class="im-summary">' + escapeHtml(item.content || '-') + '</span>';
+            html += '    </div>';
+            html += '    <span class="im-size">' + sizeStr + '</span>';
+            html += '  </div>';
+            html += '  <div class="im-body">';
+            html += '    <div class="im-actions">';
+            html += '      <button type="button" id="' + copyButtonId + '" class="btn btn-secondary btn-xs">📋 复制 Payload</button>';
+            html += '    </div>';
+            html += '    <div id="' + jsonViewId + '" class="json-container"></div>';
+            html += '  </div>';
+            html += '</div>';
+
+            var itemElem = $(html);
+            root.append(itemElem);
+
+            itemElem.find("#" + copyButtonId).on("click", function (event) {
+                event.stopPropagation();
+                copyContent(item.content || "", this);
+            });
+
+            renderJson(item.content, jsonViewId);
+        });
+    }
+
+    function toggleItem(id) {
+        var elem = $("#im_item_" + id);
+        elem.toggleClass("expanded");
+        if (elem.hasClass("expanded")) {
+            expandedImIds.add(id);
+        } else {
+            expandedImIds.delete(id);
+        }
+    }
+
+    function copyContent(content, button) {
+        var textArea = document.createElement("textarea");
+        textArea.value = content;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textArea);
+        var originText = button.textContent;
+        button.textContent = "✅ 复制成功";
+        setTimeout(function () {
+            button.textContent = originText;
+        }, 1000);
+    }
+
+    function renderJson(content, jsonViewId) {
+        if (isJSON(content)) {
+            try {
+                var container = $("#" + jsonViewId);
+                container.JSONView(content);
+                container.find("a").attr("target", "_blank").attr("rel", "noopener noreferrer");
+                container.find(".jsonview .string").each(function() {
+                    var text = $(this).text().replace(/^"|"$/g, '');
+                    if (/^https?:\/\//i.test(text)) {
+                        $(this).html('"<a href="' + escapeHtml(text) + '" target="_blank" rel="noopener noreferrer" style="color:var(--primary); text-decoration:underline;">' + escapeHtml(text) + ' ↗</a>"');
+                    }
+                });
+                return;
+            } catch (e) {}
+        }
+        var container = $("#" + jsonViewId);
+        if (/^https?:\/\//i.test($.trim(content))) {
+            container.html('<a href="' + escapeHtml(content) + '" target="_blank" rel="noopener noreferrer" style="color:var(--primary); text-decoration:underline;">' + escapeHtml(content) + ' ↗</a>');
+        } else {
+            container.text(content || "");
+        }
+    }
+
+    function isJSON(str) {
+        if (typeof str !== 'string') return false;
+        try {
+            var obj = JSON.parse(str);
+            return typeof obj === 'object' && obj;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function emptyView() {
+        $("#root_list_div").html('<div class="empty-state"><h3>💬 暂无 IM 消息记录</h3></div>');
+    }
+
+    function errorView() {
+        $("#root_list_div").html('<div class="empty-state"><h3 style="color: var(--danger);">⚠️ 服务器异常或服务关闭，请检查APP连接</h3></div>');
+    }
+
+    function cancelAutoFetch() {
+        if (autoFetchRequest != undefined && autoFetchRequest != null) {
+            autoFetchRequest.abort();
+        }
+    }
+
+    function escapeHtml(text) {
+        return $('<div/>').text(text).html();
+    }
+</script>
+</body>
+</html>

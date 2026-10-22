@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <application>
+        <activity
+            android:name=".ui.MonitorMainActivity"
+            android:exported="true"
+            android:icon="@mipmap/monitor_logo"
+            android:label="@string/monitor_app_name"
+            android:taskAffinity="com.hkjustar.monitor.okhttp.${applicationId}"
+            android:theme="@style/Monitor_AppTheme" />
+        <activity android:name=".ui.MonitorDetailActivity" android:exported="false" android:theme="@style/Monitor_AppTheme" />
+        <activity android:name=".ui.MonitorConfigActivity" android:exported="false" android:theme="@style/Monitor_AppTheme" />
+        <activity android:name=".ui.im.ImMessageDetailActivity" android:exported="false" android:theme="@style/Monitor_AppTheme" />
+        <activity android:name=".ui.sp.SPFileDetailActivity" android:exported="false" android:theme="@style/Monitor_AppTheme" />
+
+        <activity-alias
+            android:name=".ui.MonitorMainActivityLauncher"
+            android:exported="true"
+            android:icon="@mipmap/monitor_logo"
+            android:label="@string/monitor_app_name"
+            android:targetActivity="com.hkjustar.monitor.okhttp.ui.MonitorMainActivity"
+            android:taskAffinity="com.hkjustar.monitor.okhttp.${applicationId}">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="com.hkjustar.monitor.okhttp.ui.MonitorUiInitializer"
+                android:value="androidx.startup" />
+        </provider>
+    </application>
+</manifest>

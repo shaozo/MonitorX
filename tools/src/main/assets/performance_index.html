@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>抓包助手 - SoloX 级性能诊断与火焰图大屏</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg: #f0f2f5;
+            --surface: #ffffff;
+            --border: #e2e6ed;
+            --text: #1e2329;
+            --text-secondary: #707a8a;
+            --text-muted: #aeb4bc;
+            --primary: #3772ff;
+            --primary-light: #e8f0fe;
+            --success: #02c076;
+            --warning: #f0b90b;
+            --danger: #e5493a;
+            --info: #89b4fa;
+            --radius: 8px;
+            --radius-sm: 5px;
+            --shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+            --font-mono: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', ui-monospace, monospace;
+            --transition: 150ms ease;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px; color: var(--text); background: var(--bg);
+            min-height: 100vh; display: flex; flex-direction: column;
+        }
+
+        /* Nav */
+        nav {
+            height: 48px; padding: 0 20px; display: flex; align-items: center; gap: 20px;
+            background: var(--surface); border-bottom: 1px solid var(--border);
+            position: sticky; top: 0; z-index: 100; flex-shrink: 0;
+        }
+        nav .logo { font-weight: 700; font-size: 16px; color: var(--text); }
+        nav a { color: var(--text-secondary); text-decoration: none; font-size: 13px; padding: 4px 10px; border-radius: var(--radius-sm); }
+        nav a:hover { color: var(--text); background: var(--bg); }
+        nav a.active { color: var(--primary); background: var(--primary-light); font-weight: 600; }
+
+        .app-tabs { display: flex; gap: 4px; padding: 12px 20px 0; background: var(--surface); border-bottom: 1px solid var(--border); }
+        .app-tab { padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--text-secondary); border-bottom: 3px solid transparent; }
+        .app-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+        .main-area { padding: 16px 20px 32px; display: flex; flex-direction: column; gap: 16px; flex: 1; }
+
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+        .card-header { padding: 12px 16px; border-bottom: 1px solid var(--border); font-weight: 700; font-size: 14px; display: flex; align-items: center; justify-content: space-between; }
+
+        /* Grid */
+        .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+        .stat-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px; display: flex; flex-direction: column; gap: 4px; }
+        .stat-box .title { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+        .stat-box .value { font-size: 20px; font-weight: 700; color: var(--text); font-family: var(--font-mono); }
+        .stat-box .sub { font-size: 11px; color: var(--text-muted); }
+
+        .charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 14px; }
+        .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; height: 260px; display: flex; flex-direction: column; }
+        .chart-container { flex: 1; position: relative; width: 100%; height: 100%; }
+
+        /* Report Manager & Comparison */
+        .report-item { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+        .report-item:last-child { border-bottom: 0; }
+
+        .btn-sm { border: 0; border-radius: var(--radius-sm); padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; background: #f0f2f5; color: var(--text-secondary); }
+        .btn-sm:hover { background: #e2e6ed; color: var(--text); }
+        .btn-sm.primary { background: var(--primary); color: #fff; }
+        .btn-sm.success { background: var(--success); color: #fff; }
+        .btn-sm.danger { background: var(--danger); color: #fff; }
+
+        /* FlameGraph UI */
+        .flame-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 500; align-items: center; justify-content: center; }
+        .flame-modal.open { display: flex; }
+        .flame-content { background: #1e1e2e; color: #cdd6f4; width: 90vw; max-width: 1100px; height: 80vh; border-radius: var(--radius); display: flex; flex-direction: column; overflow: hidden; }
+        .flame-header { padding: 12px 16px; border-bottom: 1px solid #313244; display: flex; justify-content: space-between; align-items: center; }
+        .flame-body { flex: 1; overflow: auto; padding: 16px; font-family: var(--font-mono); font-size: 11px; }
+        .flame-toolbar { padding:8px 16px; display:flex; gap:8px; align-items:center; border-bottom:1px solid #313244; }
+        .flame-toolbar input { flex:1; min-width:160px; padding:6px 8px; color:#cdd6f4; background:#181825; border:1px solid #45475a; border-radius:4px; }
+        .flame-canvas { position:relative; min-width:900px; }
+        .flame-node { position:absolute; height:24px; line-height:24px; padding:0 6px; border:1px solid #1e1e2e;
+            overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; color:#fff; font-weight:600; }
+        .flame-node:hover, .flame-node.match { filter:brightness(1.35); outline:2px solid #f9e2af; z-index:2; }
+    </style>
+</head>
+<body>
+
+<nav>
+    <span class="logo">抓包助手</span>
+    <a href="index">网络数据</a>
+    <a href="im_index">IM消息</a>
+    <a href="sp_index">本地文件</a>
+    <a href="api_debug_index">接口调试</a>
+    <a class="active" href="#">📊 SoloX 级性能与火焰图</a>
+</nav>
+
+<div class="app-tabs">
+    <div class="app-tab active" id="tabRealtimeBtn" onclick="switchAppTab('realtime')">⚡ 实时性能与页面</div>
+    <div class="app-tab" id="tabFlameBtn" onclick="switchAppTab('flame')">🔥 主线程卡顿与火焰图</div>
+    <div class="app-tab" id="tabReportsBtn" onclick="switchAppTab('reports')">📁 性能用例与双报告对比</div>
+</div>
+
+<main class="main-area">
+
+<!-- ==================== REALTIME DASHBOARD ==================== -->
+<div id="tabRealtime" style="display:flex; flex-direction:column; gap:14px;">
+    <!-- Active Page & Monitor Control Bar -->
+    <div class="card" style="padding: 14px 16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+            <div>
+                <div style="font-size:12px; color:var(--text-muted); font-weight:600;">📱 当前前台页面 (Top Page Inspection):</div>
+                <div id="currentPageText" style="font-size:15px; font-weight:700; color:var(--primary); font-family:var(--font-mono); margin-top:2px;">正在查询当前页面...</div>
+                <div id="currentFragmentText" style="font-size:12px; color:var(--text-secondary); margin-top:2px;"></div>
+            </div>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <button class="btn-sm" onclick="fetchCurrentPage()">🔄 刷新页面</button>
+                <button class="btn-sm" onclick="copyCurrentPage()">📋 复制类名</button>
+                <span style="border-left:1px solid var(--border); height:24px; margin:0 4px;"></span>
+                <label style="font-size:13px; font-weight:700;">采集引擎 (开关):</label>
+                <button class="btn-sm success" id="btnToggleMonitor" onclick="togglePerformanceMonitor()">▶ 开启性能采集</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stat Grid -->
+    <div class="dashboard-grid">
+        <div class="stat-box">
+            <div class="title">帧率 / 抖动 (FPS & Jitter)</div>
+            <div class="value" id="valFps">-- FPS</div>
+            <div class="sub" id="valJanks">卡顿: 0 次 | 抖动: 0.0ms</div>
+        </div>
+        <div class="stat-box">
+            <div class="title">CPU 占用率 (App CPU)</div>
+            <div class="value" id="valCpu">-- %</div>
+            <div class="sub">应用进程 CPU 实时开销</div>
+        </div>
+        <div class="stat-box">
+            <div class="title">内存 PSS / Java 堆 (Memory)</div>
+            <div class="value" id="valMem">-- MB</div>
+            <div class="sub" id="valMemJava">JVM 堆: -- MB</div>
+        </div>
+        <div class="stat-box">
+            <div class="title">网络速率 / 电池 (Traffic & Battery)</div>
+            <div class="value" id="valNet">0.0 KB/s</div>
+            <div class="sub" id="valBattery">电池: --% (--°C)</div>
+        </div>
+    </div>
+
+    <!-- Realtime Charts Grid -->
+    <div class="charts-grid">
+        <div class="chart-card">
+            <div style="font-size:12px; font-weight:700; color:var(--text-secondary); margin-bottom:6px;">📈 帧率 (FPS) 变化曲线</div>
+            <div class="chart-container"><canvas id="chartFps"></canvas></div>
+        </div>
+        <div class="chart-card">
+            <div style="font-size:12px; font-weight:700; color:var(--text-secondary); margin-bottom:6px;">💻 App CPU 占用率 (%)</div>
+            <div class="chart-container"><canvas id="chartCpu"></canvas></div>
+        </div>
+        <div class="chart-card">
+            <div style="font-size:12px; font-weight:700; color:var(--text-secondary); margin-bottom:6px;">🧠 内存 PSS 与 JVM 堆 (MB)</div>
+            <div class="chart-container"><canvas id="chartMem"></canvas></div>
+        </div>
+        <div class="chart-card">
+            <div style="font-size:12px; font-weight:700; color:var(--text-secondary); margin-bottom:6px;">🌐 实时网络收发速率 (KB/s)</div>
+            <div class="chart-container"><canvas id="chartNet"></canvas></div>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== FLAME GRAPH & BLOCKS ==================== -->
+<div id="tabFlame" style="display:none; flex-direction:column; gap:14px;">
+    <div class="card">
+        <div class="card-header">
+            <span>🔥 主线程 Looper 慢处理 (卡顿堆栈高频采样器)</span>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <label style="font-size:12px; color:var(--text-secondary);">卡顿判定阈值:</label>
+                <select id="blockThresholdSelect" style="border:1px solid var(--border); border-radius:4px; padding:4px 8px; font-size:12px;">
+                    <option value="100">100 ms</option>
+                    <option value="200" selected>200 ms (推荐)</option>
+                    <option value="500">500 ms</option>
+                </select>
+                <button class="btn-sm success" id="btnToggleBlock" onclick="toggleBlockSampler()">▶ 开启卡顿采样</button>
+            </div>
+        </div>
+        <div style="padding:12px 16px; font-size:12px; color:var(--text-secondary); background:#fafbfc; border-bottom:1px solid var(--border);">
+            💡 机制：通过给 `Looper.getMainLooper()` 设置耗时监听，并使用子线程 10ms 频率采样主线程调用栈。检测到慢处理时自动生成采样文件，点击“🔥 查看火焰图”可直观追踪耗时瓶颈函数。
+        </div>
+        <div id="blockListContainer" style="display:flex; flex-direction:column;">
+            <div style="padding:30px; text-align:center; color:var(--text-muted);">暂无卡顿记录，开启采样后在 App 中触发慢操作即可捕获</div>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== REPORTS & DUAL COMPARISON ==================== -->
+<div id="tabReports" style="display:none; flex-direction:column; gap:14px;">
+    <!-- Session Recorder Card -->
+    <div class="card">
+        <div class="card-header">
+            <span>📹 性能测试用例录制 (SoloX Test Session)</span>
+        </div>
+        <div style="padding:14px 16px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <input type="text" id="sessionNameInput" placeholder="输入测试用例名称 (如：首页滑动测试)" style="border:1px solid var(--border); border-radius:4px; padding:6px 12px; font-size:13px; width:260px;">
+            <button class="btn-sm primary" id="btnStartSession" onclick="startTestSession()">▶ 开始录制用例</button>
+            <button class="btn-sm danger" id="btnStopSession" onclick="stopTestSession()" disabled>⏹ 结束并生成报告</button>
+            <span id="sessionStatusText" style="font-size:12px; font-weight:600; color:var(--text-muted);">状态: 未运行</span>
+        </div>
+    </div>
+
+    <!-- Dual Comparison Panel -->
+    <div class="card">
+        <div class="card-header">
+            <span>⚖️ 精彩双报告性能对比大屏 (Report Comparison)</span>
+            <button class="btn-sm primary" onclick="runDualReportComparison()">📊 执行对比分析</button>
+        </div>
+        <div style="padding:14px 16px; display:grid; grid-template-columns:1fr 1fr; gap:14px; border-bottom:1px solid var(--border);">
+            <div>
+                <label style="font-size:12px; font-weight:700; color:var(--text-secondary);">选择报告 A (基准/优化前):</label>
+                <select id="selectReportA" style="width:100%; border:1px solid var(--border); border-radius:4px; padding:6px; font-size:12px; margin-top:4px;"></select>
+            </div>
+            <div>
+                <label style="font-size:12px; font-weight:700; color:var(--text-secondary);">选择报告 B (对比/优化后):</label>
+                <select id="selectReportB" style="width:100%; border:1px solid var(--border); border-radius:4px; padding:6px; font-size:12px; margin-top:4px;"></select>
+            </div>
+        </div>
+
+        <div id="comparisonResultArea" style="padding:16px; display:none;">
+            <div class="dashboard-grid" id="diffGrid"></div>
+        </div>
+    </div>
+
+    <!-- Saved Reports List -->
+    <div class="card">
+        <div class="card-header">
+            <span>📁 已保存性能测试报告库</span>
+        </div>
+        <div id="reportsListContainer">
+            <div style="padding:30px; text-align:center; color:var(--text-muted);">暂无测试报告</div>
+        </div>
+    </div>
+</div>
+
+</main>
+
+<!-- FlameGraph Modal -->
+<div class="flame-modal" id="flameModal">
+    <div class="flame-content">
+        <div class="flame-header">
+            <div>
+                <span style="font-weight:700; font-size:15px;" id="flameTitle">🔥 主线程卡顿火焰图 (FlameGraph)</span>
+                <span style="font-size:12px; color:#a6adc8; margin-left:10px;" id="flameMeta"></span>
+            </div>
+            <button class="btn-sm" onclick="closeFlameModal()">✕ 关闭</button>
+        </div>
+        <div class="flame-toolbar">
+            <button class="btn-sm" id="flameBackBtn" onclick="flameZoomOut()" disabled>← 返回上层</button>
+            <input id="flameSearch" type="search" placeholder="搜索函数/类名并高亮" oninput="renderCurrentFlame()">
+            <span id="flameHotspot" style="font-size:11px;color:#f9e2af;"></span>
+        </div>
+        <div class="flame-body" id="flameContainer">
+            <!-- Flame Graph Tree Rendered Here -->
+        </div>
+    </div>
+</div>
+
+<script>
+    // ── Global States ──
+    let isPerformanceMonitoring = false;
+    let isBlockSampling = false;
+    let realtimeTimer = null;
+    let flameRoot = null;
+    let flameFocus = null;
+    let flameParents = [];
+
+    let chartFps, chartCpu, chartMem, chartNet;
+    const historyLabels = Array(30).fill('');
+    const historyFps = Array(30).fill(null);
+    const historyCpu = Array(30).fill(null);
+    const historyMem = Array(30).fill(null);
+    const historyMemJava = Array(30).fill(null);
+    const historyNetRx = Array(30).fill(null);
+    const historyNetTx = Array(30).fill(null);
+
+    // ── Tab Switch ──
+    function switchAppTab(tab) {
+        document.querySelectorAll('.app-tab').forEach(t => t.classList.remove('active'));
+        $('tabRealtime').style.display = 'none';
+        $('tabFlame').style.display = 'none';
+        $('tabReports').style.display = 'none';
+
+        if (tab === 'realtime') {
+            $('tabRealtimeBtn').classList.add('active');
+            $('tabRealtime').style.display = 'flex';
+        } else if (tab === 'flame') {
+            $('tabFlameBtn').classList.add('active');
+            $('tabFlame').style.display = 'flex';
+            fetchBlockRecords();
+        } else {
+            $('tabReportsBtn').classList.add('active');
+            $('tabReports').style.display = 'flex';
+            renderReportsList();
+        }
+    }
+
+    const $ = id => document.getElementById(id);
+
+    async function apiJson(url) {
+        const res = await fetch(url);
+        const payload = await res.json();
+        if (!res.ok || (payload && typeof payload === 'object' && payload.code != null && payload.code !== 200)) {
+            throw new Error(payload?.message || `HTTP ${res.status}`);
+        }
+        return payload && typeof payload === 'object' && Object.prototype.hasOwnProperty.call(payload, 'data')
+            ? payload.data : payload;
+    }
+
+    // ── Page Inspection ──
+    async function fetchCurrentPage() {
+        try {
+            const data = await apiJson('/getCurrentPage');
+            $('currentPageText').textContent = data.activity || '无前台 Activity';
+            $('currentFragmentText').textContent = data.fragment ? ('Fragment: ' + data.fragment) : '';
+        } catch (_) {
+            $('currentPageText').textContent = '查询失败';
+        }
+    }
+
+    function copyCurrentPage() {
+        const text = $('currentPageText').textContent;
+        if (text && text !== '查询失败') {
+            navigator.clipboard.writeText(text).then(() => alert('已复制类名到剪贴板'));
+        }
+    }
+
+    // ── Charts Init ──
+    function initCharts() {
+        if (typeof Chart === 'undefined') {
+            console.warn('Chart.js unavailable; numeric performance monitoring remains active.');
+            document.querySelectorAll('.chart-card').forEach(card => card.style.display = 'none');
+            return;
+        }
+        const commonOptions = {
+            responsive: true, maintainAspectRatio: false,
+            animation: false,
+            scales: { x: { display: false }, y: { beginAtZero: true } }
+        };
+
+        chartFps = new Chart($('chartFps'), {
+            type: 'line',
+            data: { labels: historyLabels, datasets: [{ label: 'FPS', data: historyFps, borderColor: '#02c076', tension: 0.2, fill: true, backgroundColor: 'rgba(2,192,118,0.1)' }] },
+            options: commonOptions
+        });
+
+        chartCpu = new Chart($('chartCpu'), {
+            type: 'line',
+            data: { labels: historyLabels, datasets: [{ label: 'CPU %', data: historyCpu, borderColor: '#3772ff', tension: 0.2, fill: true, backgroundColor: 'rgba(55,114,255,0.1)' }] },
+            options: commonOptions
+        });
+
+        chartMem = new Chart($('chartMem'), {
+            type: 'line',
+            data: {
+                labels: historyLabels,
+                datasets: [
+                    { label: 'PSS (MB)', data: historyMem, borderColor: '#f0b90b', tension: 0.2 },
+                    { label: 'JVM Heap (MB)', data: historyMemJava, borderColor: '#e5493a', tension: 0.2 }
+                ]
+            },
+            options: commonOptions
+        });
+
+        chartNet = new Chart($('chartNet'), {
+            type: 'line',
+            data: {
+                labels: historyLabels,
+                datasets: [
+                    { label: '下载 (KB/s)', data: historyNetRx, borderColor: '#89b4fa', tension: 0.2 },
+                    { label: '上传 (KB/s)', data: historyNetTx, borderColor: '#cba6f7', tension: 0.2 }
+                ]
+            },
+            options: commonOptions
+        });
+    }
+
+    // ── Realtime Polling ──
+    async function togglePerformanceMonitor() {
+        const target = !isPerformanceMonitoring;
+        try {
+            isPerformanceMonitoring = !!(await apiJson(`/setPerformanceMonitor?isOpen=${target}`));
+            updateMonitorBtnState();
+            if (isPerformanceMonitoring) startRealtimeLoop();
+            else stopRealtimeLoop();
+        } catch (e) {
+            alert('环境通信异常: ' + e);
+        }
+    }
+
+    function updateMonitorBtnState() {
+        const btn = $('btnToggleMonitor');
+        if (isPerformanceMonitoring) {
+            btn.className = 'btn-sm danger';
+            btn.textContent = '⏹ 停止性能采集';
+        } else {
+            btn.className = 'btn-sm success';
+            btn.textContent = '▶ 开启性能采集';
+        }
+    }
+
+    function startRealtimeLoop() {
+        if (realtimeTimer) clearInterval(realtimeTimer);
+        realtimeTimer = setInterval(pollMetrics, 1000);
+        pollMetrics();
+    }
+
+    function stopRealtimeLoop() {
+        if (realtimeTimer) clearInterval(realtimeTimer);
+        realtimeTimer = null;
+    }
+
+    async function pollMetrics() {
+        fetchCurrentPage();
+        try {
+            const data = await apiJson('/getPerformanceMetrics');
+            const latest = data.latest;
+            if (!latest) return;
+
+            $('valFps').textContent = latest.fps + ' FPS';
+            $('valJanks').textContent = `卡顿: ${latest.janks} 次 | 抖动: ${latest.jitterMs}ms`;
+            $('valCpu').textContent = latest.cpuUsageApp + ' %';
+            $('valMem').textContent = latest.memoryPssMb + ' MB';
+            $('valMemJava').textContent = `JVM 堆: ${latest.memoryJavaHeapMb} MB`;
+            $('valNet').textContent = `↓ ${latest.rxSpeedKb} KB/s  ↑ ${latest.txSpeedKb} KB/s`;
+            $('valBattery').textContent = `电池: ${latest.batteryPct}% (${latest.batteryTemp}°C, ${latest.batteryVolt}mV)`;
+
+            // Push Chart
+            historyFps.shift(); historyFps.push(latest.fps);
+            historyCpu.shift(); historyCpu.push(latest.cpuUsageApp);
+            historyMem.shift(); historyMem.push(latest.memoryPssMb);
+            historyMemJava.shift(); historyMemJava.push(latest.memoryJavaHeapMb);
+            historyNetRx.shift(); historyNetRx.push(latest.rxSpeedKb);
+            historyNetTx.shift(); historyNetTx.push(latest.txSpeedKb);
+
+            chartFps?.update(); chartCpu?.update(); chartMem?.update(); chartNet?.update();
+        } catch (_) {}
+    }
+
+    // ── Looper Block & FlameGraph ──
+    async function toggleBlockSampler() {
+        const target = !isBlockSampling;
+        const threshold = $('blockThresholdSelect').value;
+        try {
+            isBlockSampling = !!(await apiJson(`/setBlockSampler?isOpen=${target}&thresholdMs=${threshold}`));
+            const btn = $('btnToggleBlock');
+            btn.className = isBlockSampling ? 'btn-sm danger' : 'btn-sm success';
+            btn.textContent = isBlockSampling ? '⏹ 停止卡顿采样' : '▶ 开启卡顿采样';
+            if (isBlockSampling) fetchBlockRecords();
+        } catch (_) {}
+    }
+
+    async function fetchBlockRecords() {
+        try {
+            const data = await apiJson('/getBlockRecords');
+            isBlockSampling = !!data.isEnabled;
+            const btn = $('btnToggleBlock');
+            btn.className = isBlockSampling ? 'btn-sm danger' : 'btn-sm success';
+            btn.textContent = isBlockSampling ? '⏹ 停止卡顿采样' : '▶ 开启卡顿采样';
+            const container = $('blockListContainer');
+            container.innerHTML = '';
+            if (!data.records || !data.records.length) {
+                container.innerHTML = '<div style="padding:30px; text-align:center; color:var(--text-muted);">暂无慢处理/卡顿记录</div>';
+                return;
+            }
+            data.records.forEach(r => {
+                const item = document.createElement('div');
+                item.className = 'report-item';
+                const info = document.createElement('div');
+                const title = document.createElement('div');
+                title.style.cssText = 'font-weight:700;color:var(--danger)';
+                title.textContent = `⚠️ 卡顿耗时: ${r.durationMs} ms (采样帧: ${r.sampleCount})`;
+                const message = document.createElement('div');
+                message.style.cssText = 'font-size:11px;color:var(--text-muted);font-family:var(--font-mono);margin-top:2px';
+                message.textContent = r.targetHandlerMsg || '';
+                const time = document.createElement('div');
+                time.style.cssText = 'font-size:10px;color:var(--text-muted);margin-top:2px';
+                time.textContent = `触发时间: ${new Date(r.timestamp).toLocaleTimeString()}`;
+                info.append(title, message, time);
+                const button = document.createElement('button');
+                button.className = 'btn-sm primary';
+                button.textContent = '🔥 查看火焰图';
+                button.onclick = () => showFlameGraph(r.id, r.durationMs);
+                item.append(info, button);
+                container.appendChild(item);
+            });
+        } catch (_) {}
+    }
+
+    async function showFlameGraph(id, durationMs) {
+        try {
+            const flameData = await apiJson(`/getBlockFlameGraphData?id=${encodeURIComponent(id)}`);
+            if (!flameData) { alert('未找到该卡顿图表数据'); return; }
+
+            $('flameMeta').textContent = `耗时: ${durationMs}ms · 关联线程: main`;
+            flameRoot = flameData;
+            flameFocus = flameData;
+            flameParents = [];
+            $('flameSearch').value = '';
+            updateHotspot(flameData);
+            renderCurrentFlame();
+
+            $('flameModal').classList.add('open');
+        } catch (e) { alert('加载火焰图失败: ' + e); }
+    }
+
+    function renderCurrentFlame() {
+        if (!flameFocus) return;
+        const container = $('flameContainer');
+        container.innerHTML = '';
+        const canvas = document.createElement('div');
+        canvas.className = 'flame-canvas';
+        const query = $('flameSearch').value.trim().toLowerCase();
+        let maxDepth = 0;
+        const layout = (node, x, width, depth) => {
+            maxDepth = Math.max(maxDepth, depth);
+            const div = document.createElement('div');
+            const pct = ((node.value / Math.max(flameFocus.value, 1)) * 100).toFixed(1);
+            div.className = 'flame-node' + (query && node.name.toLowerCase().includes(query) ? ' match' : '');
+            div.style.left = `${x}%`; div.style.width = `${Math.max(width, .15)}%`; div.style.bottom = `${depth * 25}px`;
+            div.style.background = node.name.includes('hkjustar') || node.name.includes('gemgala') ? '#e5493a'
+                : node.name.includes('android.') ? '#585b70' : '#b45f06';
+            div.title = `${node.name} · ${node.value} samples · ${pct}%`;
+            div.textContent = `${node.name} [${pct}%]`;
+            div.onclick = () => { if (node.children?.length) { flameParents.push(flameFocus); flameFocus = node; renderCurrentFlame(); } };
+            canvas.appendChild(div);
+            let childX = x;
+            (node.children || []).forEach(child => {
+                const childWidth = width * child.value / Math.max(node.value, 1);
+                layout(child, childX, childWidth, depth + 1);
+                childX += childWidth;
+            });
+        };
+        layout(flameFocus, 0, 100, 0);
+        canvas.style.height = `${(maxDepth + 1) * 25}px`;
+        container.appendChild(canvas);
+        $('flameBackBtn').disabled = flameParents.length === 0;
+    }
+
+    function flameZoomOut() {
+        if (!flameParents.length) return;
+        flameFocus = flameParents.pop();
+        renderCurrentFlame();
+    }
+
+    function updateHotspot(root) {
+        let best = null;
+        const visit = node => {
+            if (node !== root && (!best || node.value > best.value)) best = node;
+            (node.children || []).forEach(visit);
+        };
+        visit(root);
+        $('flameHotspot').textContent = best ? `热点: ${best.name} (${best.value} samples)` : '';
+    }
+
+    function closeFlameModal() {
+        $('flameModal').classList.remove('open');
+    }
+
+    // ── SoloX Session & Comparison ──
+    const REPORT_KEY = 'solox_reports_v1';
+    function getStoredReports() { try { return JSON.parse(localStorage.getItem(REPORT_KEY) || '[]'); } catch(_) { return []; } }
+    function saveStoredReports(list) { localStorage.setItem(REPORT_KEY, JSON.stringify(list)); renderReportsList(); }
+
+    async function startTestSession() {
+        const name = $('sessionNameInput').value;
+        try {
+            const started = await apiJson(`/startPerformanceSession?name=${encodeURIComponent(name)}`);
+            if (!started) throw new Error('启动录制失败');
+            $('btnStartSession').disabled = true;
+            $('btnStopSession').disabled = false;
+            $('sessionStatusText').textContent = '状态: 🔴 录制中...';
+        } catch (_) {}
+    }
+
+    async function stopTestSession() {
+        try {
+            const report = await apiJson('/stopPerformanceSession');
+            $('btnStartSession').disabled = false;
+            $('btnStopSession').disabled = true;
+            $('sessionStatusText').textContent = '状态: 已就绪';
+
+            if (report) {
+                const list = getStoredReports();
+                list.unshift(report);
+                saveStoredReports(list);
+                alert('测试用例报告已生成！');
+            }
+        } catch (_) {}
+    }
+
+    function renderReportsList() {
+        const list = getStoredReports();
+        const container = $('reportsListContainer');
+        const selectA = $('selectReportA');
+        const selectB = $('selectReportB');
+
+        container.innerHTML = '';
+        selectA.innerHTML = '';
+        selectB.innerHTML = '';
+
+        if (!list.length) {
+            container.innerHTML = '<div style="padding:30px; text-align:center; color:var(--text-muted);">暂无测试报告</div>';
+            return;
+        }
+
+        list.forEach(r => {
+            const optA = document.createElement('option');
+            optA.value = r.id; optA.textContent = `${r.name} (${new Date(r.startTime).toLocaleTimeString()})`;
+            selectA.appendChild(optA);
+
+            const optB = optA.cloneNode(true);
+            selectB.appendChild(optB);
+
+            const item = document.createElement('div');
+            item.className = 'report-item';
+            item.innerHTML = `
+                <div>
+                    <div style="font-weight:700;">${r.name}</div>
+                    <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">时长: ${r.durationSec}s | 平均FPS: ${r.summary.avgFps} | 卡顿: ${r.summary.totalJanks}次 | 平均CPU: ${r.summary.avgCpuPct}% | 内存峰值: ${r.summary.maxMemoryPssMb}MB</div>
+                </div>
+                <button class="btn-sm danger" onclick="deleteReport('${r.id}')">删除</button>
+            `;
+            container.appendChild(item);
+        });
+    }
+
+    function deleteReport(id) {
+        const list = getStoredReports().filter(r => r.id !== id);
+        saveStoredReports(list);
+    }
+
+    function runDualReportComparison() {
+        const idA = $('selectReportA').value;
+        const idB = $('selectReportB').value;
+        if (!idA || !idB || idA === idB) { alert('请选择两份不同的报告进行对比'); return; }
+
+        const list = getStoredReports();
+        const rA = list.find(r => r.id === idA);
+        const rB = list.find(r => r.id === idB);
+        if (!rA || !rB) return;
+
+        const grid = $('diffGrid');
+        grid.innerHTML = `
+            ${renderDiffBox('平均帧率 (FPS)', rA.summary.avgFps, rB.summary.avgFps, '', true)}
+            ${renderDiffBox('Total Janks 卡顿次', rA.summary.totalJanks, rB.summary.totalJanks, '次', false)}
+            ${renderDiffBox('平均 CPU 占用', rA.summary.avgCpuPct, rB.summary.avgCpuPct, '%', false)}
+            ${renderDiffBox('内存 PSS 峰值', rA.summary.maxMemoryPssMb, rB.summary.maxMemoryPssMb, 'MB', false)}
+        `;
+        $('comparisonResultArea').style.display = 'block';
+    }
+
+    function renderDiffBox(title, valA, valB, unit, higherIsBetter) {
+        const diff = Math.round((valB - valA) * 10) / 10;
+        const pct = valA > 0 ? Math.round((diff / valA) * 100) : 0;
+        const isGood = higherIsBetter ? diff >= 0 : diff <= 0;
+        const color = isGood ? 'var(--success)' : 'var(--danger)';
+        const arrow = diff >= 0 ? '↑' : '↓';
+
+        return `
+            <div class="stat-box">
+                <div class="title">${title} 对比</div>
+                <div class="value" style="font-size:16px;">报告 A: ${valA}${unit} vs 报告 B: ${valB}${unit}</div>
+                <div style="font-weight:700; font-size:13px; color:${color}; margin-top:4px;">
+                    差异: ${arrow} ${Math.abs(diff)}${unit} (${pct >= 0 ? '+' : ''}${pct}%)
+                </div>
+            </div>
+        `;
+    }
+
+    // Init & Check Status
+    async function checkServerStatus() {
+        try {
+            const data = await apiJson('/getPerformanceMetrics');
+            isPerformanceMonitoring = !!data.isMonitoring;
+            updateMonitorBtnState();
+            if (isPerformanceMonitoring) {
+                startRealtimeLoop();
+            }
+        } catch (_) {}
+    }
+
+    try { initCharts(); } catch (error) { console.warn('Chart initialization failed:', error); }
+    fetchCurrentPage();
+    checkServerStatus();
+    // Periodically fetch page info even if metrics disabled
+    setInterval(fetchCurrentPage, 2000);
+</script>
+</body>
+</html>

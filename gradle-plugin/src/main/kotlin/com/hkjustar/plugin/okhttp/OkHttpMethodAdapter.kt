@@ -1,0 +1,30 @@
+package com.hkjustar.plugin.okhttp
+
+import org.objectweb.asm.MethodVisitor
+import org.objectweb.asm.Opcodes
+import org.objectweb.asm.commons.AdviceAdapter
+
+class OkHttpMethodAdapter(methodVisitor: MethodVisitor?, access: Int, name: String?, descriptor: String?) : AdviceAdapter(Opcodes.ASM7, methodVisitor, access, name, descriptor) {
+
+    override fun onMethodEnter() {
+        super.onMethodEnter()
+        mv?.let {
+            // 注入 Monitor 拦截器，并保留已有的 EventListener.Factory
+            it.visitFieldInsn(GETSTATIC, "com/hkjustar/monitor/okhttp/MonitorHelper", "INSTANCE", "Lcom/hkjustar/monitor/okhttp/MonitorHelper;")
+            it.visitVarInsn(ALOAD, 0)
+            it.visitFieldInsn(GETFIELD, "okhttp3/OkHttpClient\$Builder", "interceptors", "Ljava/util/List;")
+            it.visitLdcInsn(PluginHelper.insertMode())
+            it.visitLdcInsn(PluginHelper.anchorInterceptorClassName())
+            it.visitVarInsn(ALOAD, 0)
+            it.visitVarInsn(ALOAD, 0)
+            it.visitFieldInsn(GETFIELD, "okhttp3/OkHttpClient\$Builder", "eventListenerFactory", "Lokhttp3/EventListener\$Factory;")
+            it.visitMethodInsn(
+                INVOKEVIRTUAL,
+                "com/hkjustar/monitor/okhttp/MonitorHelper",
+                "installHookInterceptors",
+                "(Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Lokhttp3/OkHttpClient\$Builder;Lokhttp3/EventListener\$Factory;)V",
+                false
+            )
+        }
+    }
+}

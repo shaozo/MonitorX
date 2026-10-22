@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>抓包助手 - 本地文件 (SP & MMKV)</title>
+    <script src="https://cdn.staticfile.org/jquery/2.1.1/jquery.min.js"></script>
+    <style>
+        :root {
+            --bg: #f0f2f5;
+            --surface: #ffffff;
+            --border: #e2e6ed;
+            --text: #1e2329;
+            --text-secondary: #707a8a;
+            --text-muted: #aeb4bc;
+            --primary: #3772ff;
+            --primary-light: #e8f0fe;
+            --success: #02c076;
+            --warning: #f0b90b;
+            --danger: #e5493a;
+            --info: #89b4fa;
+            --radius: 8px;
+            --radius-sm: 5px;
+            --shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+            --font-mono: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', ui-monospace, monospace;
+            --transition: 150ms ease;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px; color: var(--text); background: var(--bg);
+            min-height: 100vh; display: flex; flex-direction: column;
+        }
+
+        /* ── Header Nav ── */
+        nav {
+            height: 48px; padding: 0 20px; display: flex; align-items: center; gap: 20px;
+            background: var(--surface); border-bottom: 1px solid var(--border);
+            position: sticky; top: 0; z-index: 100; flex-shrink: 0;
+        }
+        nav .logo { font-weight: 700; font-size: 16px; color: var(--text); letter-spacing: -.3px; }
+        nav a {
+            color: var(--text-secondary); text-decoration: none; font-size: 13px;
+            padding: 4px 10px; border-radius: var(--radius-sm); transition: var(--transition);
+        }
+        nav a:hover { color: var(--text); background: var(--bg); }
+        nav a.active { color: var(--primary); background: var(--primary-light); font-weight: 600; }
+
+        /* ── Main App Layout ── */
+        .app-layout { display: flex; flex: 1; overflow: hidden; height: calc(100vh - 48px); }
+
+        /* Left File Sidebar */
+        .sidebar {
+            width: 280px; flex-shrink: 0; background: var(--surface);
+            border-right: 1px solid var(--border); display: flex; flex-direction: column;
+            overflow: hidden;
+        }
+        .sidebar-header {
+            padding: 12px 16px; border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between; background: #fafbfc;
+        }
+        .sidebar-header h3 { font-size: 13px; font-weight: 700; text-transform: uppercase; color: var(--text-secondary); letter-spacing: .5px; }
+
+        .search-box { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+        .search-box input {
+            width: 100%; height: 32px; padding: 0 10px; font-size: 12px; border: 1px solid var(--border);
+            border-radius: var(--radius-sm); outline: none; transition: var(--transition);
+        }
+        .search-box input:focus { border-color: var(--primary); }
+
+        .file-list { flex: 1; overflow-y: auto; padding: 6px 0; }
+        .file-item {
+            padding: 10px 14px; cursor: pointer; border-left: 3px solid transparent;
+            transition: var(--transition); display: flex; align-items: center; justify-content: space-between;
+        }
+        .file-item:hover { background: var(--bg); }
+        .file-item.active { background: var(--primary-light); border-left-color: var(--primary); font-weight: 600; }
+        .file-item .file-name { font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+        .file-tag { font-size: 10px; padding: 1px 6px; border-radius: 3px; font-family: var(--font-mono); font-weight: 700; margin-right: 6px; }
+        .tag-sp { background: #e8f0fe; color: var(--primary); }
+        .tag-mmkv { background: #e6f4ea; color: var(--success); }
+
+        /* Right Content Area */
+        .content-area { flex: 1; overflow-y: auto; padding: 16px 20px 32px; display: flex; flex-direction: column; gap: 14px; }
+
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+        .card-header {
+            padding: 12px 16px; border-bottom: 1px solid var(--border); font-weight: 700; font-size: 14px;
+            display: flex; align-items: center; justify-content: space-between; background: #fafbfc;
+        }
+
+        /* KV Table */
+        .kv-table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 13px; }
+        .kv-table th, .kv-table td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+        .kv-table th { background: #f8f9fa; color: var(--text-secondary); font-weight: 600; font-size: 12px; }
+        .kv-table tr:last-child td { border-bottom: 0; }
+        .kv-table tr:hover td { background: #fafbfc; }
+
+        .type-badge { font-size: 11px; padding: 2px 6px; border-radius: 3px; background: #f0f2f5; color: var(--text-secondary); font-family: var(--font-mono); }
+        .val-text { max-width: 400px; word-break: break-all; color: var(--text); }
+
+        .btn-edit {
+            border: 0; background: var(--primary-light); color: var(--primary); font-size: 11px; font-weight: 600;
+            padding: 4px 10px; border-radius: var(--radius-sm); cursor: pointer; transition: var(--transition);
+        }
+        .btn-edit:hover { background: var(--primary); color: #fff; }
+
+        /* Modal dialog */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 500;
+            display: none; align-items: center; justify-content: center;
+        }
+        .modal-overlay.open { display: flex; }
+        .modal-card { background: #fff; border-radius: var(--radius); width: 90vw; max-width: 500px; box-shadow: 0 10px 25px rgba(0,0,0,.15); overflow: hidden; }
+        .modal-header { padding: 14px 18px; border-bottom: 1px solid var(--border); font-weight: 700; font-size: 14px; background: #fafbfc; display: flex; justify-content: space-between; align-items: center; }
+        .modal-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
+        .modal-footer { padding: 12px 18px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; background: #fafbfc; }
+
+        .form-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+        .form-control { width: 100%; padding: 8px 10px; font-size: 13px; border: 1px solid var(--border); border-radius: var(--radius-sm); outline: none; font-family: var(--font-mono); }
+        .form-control:focus { border-color: var(--primary); }
+
+        .btn { height: 32px; padding: 0 14px; font-size: 13px; font-weight: 600; border-radius: var(--radius-sm); border: 0; cursor: pointer; }
+        .btn-primary { background: var(--primary); color: #fff; }
+        .btn-secondary { background: var(--bg); color: var(--text-secondary); border: 1px solid var(--border); }
+
+        .empty-state { text-align: center; padding: 40px 20px; color: var(--text-muted); }
+    </style>
+</head>
+<body>
+
+<nav>
+    <span class="logo">抓包助手</span>
+    <a href="index">网络数据</a>
+    <a href="im_index">IM消息</a>
+    <a class="active" href="sp_index">本地文件 (SP & MMKV)</a>
+    <a href="api_debug_index">接口调试</a>
+    <a href="performance_index">📊 性能与诊断</a>
+</nav>
+
+<div class="app-layout">
+    <!-- Left Sidebar: File List -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h3>📂 本地存储文件</h3>
+            <button type="button" onclick="loadSpData()" class="btn-edit">🔄 刷新</button>
+        </div>
+        <div class="search-box">
+            <input type="text" id="fileSearch" placeholder="搜索 SP / MMKV 文件...">
+        </div>
+        <div id="fileList" class="file-list"></div>
+    </div>
+
+    <!-- Right Content Area: KV Details -->
+    <div class="content-area">
+        <div class="card">
+            <div class="card-header">
+                <span id="currentFileName">请选择左侧文件</span>
+                <span id="kvCount" style="font-size: 12px; color: var(--text-muted); font-weight: normal;"></span>
+            </div>
+            <div id="kvTableContainer">
+                <div class="empty-state">👈 点击左侧 SP / MMKV 文件查看并编辑 Key-Value</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Modal Dialog -->
+<div id="editModal" class="modal-overlay">
+    <div class="modal-card">
+        <div class="modal-header">
+            <span>✏️ 编辑 Key-Value 值</span>
+            <span style="cursor:pointer;" onclick="closeModal()">✕</span>
+        </div>
+        <div class="modal-body">
+            <div>
+                <div class="form-label">文件名</div>
+                <div id="modalFileName" style="font-family: var(--font-mono); font-weight: 600; font-size: 13px; margin-top:2px;"></div>
+            </div>
+            <div>
+                <div class="form-label">Key 键名 <span id="modalValType" class="type-badge" style="margin-left:6px;"></span></div>
+                <div id="modalKey" style="font-family: var(--font-mono); color: var(--primary); font-weight: 600; font-size: 13px; margin-top:2px;"></div>
+            </div>
+            <div>
+                <div class="form-label">Value 键值</div>
+                <textarea id="modalValueInput" class="form-control" rows="5" placeholder="请输入修改后的值..."></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeModal()">取消</button>
+            <button type="button" class="btn btn-primary" onclick="submitUpdate()">保存修改</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    var globalData = {};
+    var selectedFileKey = null;
+
+    $(document).ready(function () {
+        $("#fileSearch").on("input", function () {
+            renderSidebar($.trim($(this).val()));
+        });
+        loadSpData();
+    });
+
+    function loadSpData() {
+        $.get("/sharedPrefs", function (result) {
+            if (!result || result === "[]") {
+                emptyView();
+                return;
+            }
+            try {
+                var jsonObj = typeof result === "string" ? JSON.parse(result) : result;
+                if (jsonObj.code === 200 && jsonObj.data) {
+                    globalData = jsonObj.data;
+                    renderSidebar("");
+                    // 默认选择第一个
+                    var keys = Object.keys(globalData);
+                    if (keys.length > 0 && !selectedFileKey) {
+                        selectFile(keys[0]);
+                    } else if (selectedFileKey && globalData[selectedFileKey]) {
+                        selectFile(selectedFileKey);
+                    }
+                } else {
+                    emptyView();
+                }
+            } catch (e) {
+                console.error(e);
+                emptyView();
+            }
+        }).error(function () {
+            errorView();
+        });
+    }
+
+    function renderSidebar(filter) {
+        var fileList = $("#fileList");
+        fileList.empty();
+
+        var keys = Object.keys(globalData);
+        if (keys.length === 0) {
+            fileList.html('<div style="text-align:center; padding:20px; color:var(--text-muted); font-size:12px;">暂无文件</div>');
+            return;
+        }
+
+        keys.forEach(function (fileKey) {
+            if (filter && fileKey.toLowerCase().indexOf(filter.toLowerCase()) === -1) {
+                return;
+            }
+
+            var isMmkv = fileKey.indexOf("[MMKV]") === 0;
+            var tagClass = isMmkv ? "tag-mmkv" : "tag-sp";
+            var tagText = isMmkv ? "MMKV" : "SP";
+            var displayName = fileKey.replace(/^\[(SP|MMKV)\]\s*/, "");
+
+            var activeClass = (selectedFileKey === fileKey) ? "active" : "";
+
+            var html = '<div class="file-item ' + activeClass + '" onclick="selectFile(\'' + escapeHtml(fileKey) + '\')">';
+            html += '  <span class="file-tag ' + tagClass + '">' + tagText + '</span>';
+            html += '  <span class="file-name" title="' + escapeHtml(displayName) + '">' + escapeHtml(displayName) + '</span>';
+            html += '</div>';
+
+            fileList.append(html);
+        });
+    }
+
+    function selectFile(fileKey) {
+        selectedFileKey = fileKey;
+        $(".file-item").removeClass("active");
+        renderSidebar($("#fileSearch").val());
+
+        var fileData = globalData[fileKey] || {};
+        $("#currentFileName").text(fileKey);
+        var kvKeys = Object.keys(fileData);
+        $("#kvCount").text("共 " + kvKeys.length + " 项键值");
+
+        var container = $("#kvTableContainer");
+        container.empty();
+
+        if (kvKeys.length === 0) {
+            container.html('<div class="empty-state">该文件下暂无 Key-Value 数据</div>');
+            return;
+        }
+
+        var tableHtml = '<table class="kv-table">';
+        tableHtml += '<thead><tr><th>Key 键名</th><th>Value 键值</th><th>类型</th><th style="width:70px; text-align:center;">操作</th></tr></thead>';
+        tableHtml += '<tbody>';
+
+        kvKeys.forEach(function (k) {
+            var item = fileData[k] || {};
+            var val = item.value !== undefined && item.value !== null ? item.value : "";
+            var vType = item.type ? (item.type.name || item.type) : "String";
+
+            tableHtml += '<tr>';
+            tableHtml += '  <td style="color:var(--primary); font-weight:600;">' + escapeHtml(k) + '</td>';
+            tableHtml += '  <td><div class="val-text">' + escapeHtml(String(val)) + '</div></td>';
+            tableHtml += '  <td><span class="type-badge">' + escapeHtml(String(vType)) + '</span></td>';
+            tableHtml += '  <td style="text-align:center;">';
+            tableHtml += '    <button type="button" class="btn-edit" onclick="openEditModal(\'' + escapeHtml(fileKey) + '\', \'' + escapeHtml(k) + '\', \'' + escapeHtml(String(val)) + '\', \'' + escapeHtml(String(vType)) + '\')">编辑</button>';
+            tableHtml += '  </td>';
+            tableHtml += '</tr>';
+        });
+
+        tableHtml += '</tbody></table>';
+        container.html(tableHtml);
+    }
+
+    function openEditModal(fileName, key, value, valueType) {
+        $("#modalFileName").text(fileName);
+        $("#modalKey").text(key);
+        $("#modalValType").text(valueType);
+        $("#modalValueInput").val(value);
+        $("#editModal").addClass("open");
+    }
+
+    function closeModal() {
+        $("#editModal").removeClass("open");
+    }
+
+    function submitUpdate() {
+        var fileName = $("#modalFileName").text();
+        var key = $("#modalKey").text();
+        var value = $("#modalValueInput").val();
+        var valueType = $("#modalValType").text();
+
+        $.post("/updateSpValue", {
+            fileName: fileName,
+            key: key,
+            value: value,
+            valueType: valueType
+        }, function (data, status) {
+            if (status === "success") {
+                closeModal();
+                loadSpData(); // 重新加载刷新
+            } else {
+                alert("修改失败，请重试");
+            }
+        });
+    }
+
+    function emptyView() {
+        $("#fileList").html('<div style="text-align:center; padding:20px; color:var(--text-muted);">暂无本地文件</div>');
+        $("#kvTableContainer").html('<div class="empty-state">暂无数据</div>');
+    }
+
+    function errorView() {
+        $("#fileList").html('<div style="text-align:center; padding:20px; color:var(--danger);">加载失败</div>');
+        $("#kvTableContainer").html('<div class="empty-state" style="color:var(--danger);">服务器异常，请重新尝试</div>');
+    }
+
+    function escapeHtml(text) {
+        return $('<div/>').text(text).html();
+    }
+</script>
+</body>
+</html>

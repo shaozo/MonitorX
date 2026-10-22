@@ -1,0 +1,2102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>抓包助手 - 接口调试与脚本自动化</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg: #f0f2f5;
+            --surface: #ffffff;
+            --border: #e2e6ed;
+            --text: #1e2329;
+            --text-secondary: #707a8a;
+            --text-muted: #aeb4bc;
+            --primary: #3772ff;
+            --primary-light: #e8f0fe;
+            --success: #02c076;
+            --warning: #f0b90b;
+            --danger: #e5493a;
+            --info: #778899;
+            --radius: 8px;
+            --radius-sm: 5px;
+            --shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+            --font-mono: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            --transition: 150ms ease;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Roboto, sans-serif;
+            font-size: 14px; color: var(--text); background: var(--bg);
+            min-height: 100vh; display: flex; flex-direction: column;
+        }
+
+        /* ── Nav bar ── */
+        nav {
+            height: 48px; padding: 0 20px; display: flex; align-items: center; gap: 20px;
+            background: var(--surface); border-bottom: 1px solid var(--border);
+            position: sticky; top: 0; z-index: 100; flex-shrink: 0;
+        }
+        nav .logo { font-weight: 700; font-size: 16px; color: var(--text); letter-spacing: -.3px; }
+        nav a {
+            color: var(--text-secondary); text-decoration: none; font-size: 13px;
+            padding: 4px 10px; border-radius: var(--radius-sm); transition: var(--transition);
+        }
+        nav a:hover { color: var(--text); background: var(--bg); }
+        nav a.active { color: var(--primary); background: var(--primary-light); font-weight: 600; }
+
+        /* Mode Selector */
+        .mode-switch {
+            display: flex; background: var(--bg); padding: 3px; border-radius: var(--radius-sm);
+            margin-left: 10px; border: 1px solid var(--border);
+        }
+        .mode-btn {
+            border: 0; background: transparent; padding: 4px 12px; font-size: 12px; font-weight: 600;
+            color: var(--text-secondary); cursor: pointer; border-radius: 4px; transition: var(--transition);
+        }
+        .mode-btn.active { background: var(--surface); color: var(--primary); box-shadow: var(--shadow); }
+
+        /* ── Two-column layout ── */
+        .app-layout { display: flex; flex: 1; overflow: hidden; }
+        .sidebar {
+            width: 280px; flex-shrink: 0; background: var(--surface);
+            border-right: 1px solid var(--border); display: flex; flex-direction: column;
+            overflow: hidden; transition: transform var(--transition);
+        }
+        .main-area { flex: 1; overflow-y: auto; padding: 16px 20px 32px; display: flex; flex-direction: column; gap: 12px; }
+
+        /* sidebar header */
+        .sidebar-header {
+            padding: 12px 14px; border-bottom: 1px solid var(--border);
+            display: flex; flex-direction: column; align-items: stretch; gap: 9px;
+        }
+        .sidebar-header h3 {
+            margin: 0; min-width: 0; font-size: 13px; line-height: 18px; font-weight: 700;
+            text-transform: uppercase; letter-spacing: .5px; color: var(--text-secondary);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .sidebar-actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+        .sidebar-header button {
+            border: 0; background: var(--primary); color: #fff; border-radius: var(--radius-sm);
+            min-width: 0; height: 30px; padding: 0 6px; font-size: 11px; line-height: 1;
+            cursor: pointer; font-weight: 600; white-space: nowrap;
+        }
+        .sidebar-header button.secondary { background: var(--bg); color: var(--text-secondary); }
+        .sidebar-header button:hover { filter: brightness(.97); }
+
+        /* saved list */
+        .saved-list { flex: 1; overflow-y: auto; padding: 6px 0; }
+        .saved-item {
+            padding: 10px 14px; cursor: pointer; border-left: 3px solid transparent;
+            transition: var(--transition); border-bottom: 1px solid #f5f5f5;
+        }
+        .saved-item:hover { background: var(--bg); }
+        .saved-item.active { background: var(--primary-light); border-left-color: var(--primary); }
+        .saved-item .method-badge { display: inline-block; font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 3px; margin-right: 6px; vertical-align: middle; }
+        .saved-item .name { font-weight: 600; font-size: 13px; }
+        .saved-item .url-preview { font-size: 11px; color: var(--text-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .saved-item .actions { display: none; gap: 4px; margin-top: 5px; }
+        .saved-item:hover .actions { display: flex; }
+        .saved-item .actions button {
+            border: 0; border-radius: 3px; padding: 2px 8px; font-size: 11px; cursor: pointer;
+            background: #f0f2f5; color: var(--text-secondary);
+        }
+        .saved-item .actions button.danger { color: var(--danger); }
+
+        /* ── Cards ── */
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+        .card-header {
+            padding: 10px 16px; border-bottom: 1px solid var(--border);
+            font-weight: 600; font-size: 13px; color: var(--text-secondary);
+            display: flex; align-items: center; justify-content: space-between;
+        }
+
+        /* ── Request line ── */
+        .request-line { display: flex; gap: 8px; align-items: stretch; padding: 12px 16px; }
+        .request-line select {
+            width: 110px; flex-shrink: 0; border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+            padding: 8px 10px; font-weight: 700; font-size: 13px; background: #fff; cursor: pointer;
+            appearance: none; -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23707a8a'/%3E%3C/svg%3E");
+            background-repeat: no-repeat; background-position: right 10px center; padding-right: 28px;
+        }
+        .request-line input[type="text"] { flex: 1; border: 1.5px solid var(--border); border-radius: var(--radius-sm); padding: 8px 12px; font-size: 13px; font-family: var(--font-mono); }
+        .request-line input:focus, .request-line select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(55,114,255,.12); }
+        .btn-send {
+            padding: 8px 24px; border: 0; border-radius: var(--radius-sm); cursor: pointer;
+            font-weight: 700; font-size: 13px; letter-spacing: .3px; transition: var(--transition);
+            background: var(--primary); color: #fff; flex-shrink: 0; min-width: 80px;
+        }
+        .btn-send:hover { filter: brightness(1.1); }
+        .btn-send:disabled { opacity: .5; cursor: not-allowed; filter: none; }
+        .btn-send.sending { background: var(--danger); }
+
+        /* ── Tabs ── */
+        .tabs { display: flex; gap: 0; border-bottom: 2px solid var(--border); padding: 0 16px; }
+        .tab {
+            padding: 9px 16px; font-size: 12px; font-weight: 600; cursor: pointer;
+            color: var(--text-secondary); border-bottom: 2px solid transparent;
+            margin-bottom: -2px; transition: var(--transition); background: none; border-top: 0; border-left: 0; border-right: 0;
+        }
+        .tab:hover { color: var(--text); }
+        .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+        .tab-content { display: none; padding: 12px 16px; }
+        .tab-content.active { display: block; }
+
+        /* ── KV editor ── */
+        .kv-editor { width: 100%; }
+        .kv-row { display: flex; gap: 6px; margin-bottom: 5px; align-items: center; }
+        .kv-row input {
+            flex: 1; border: 1px solid var(--border); border-radius: var(--radius-sm);
+            padding: 7px 10px; font-size: 13px; font-family: var(--font-mono); min-width: 0;
+        }
+        .kv-row input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(55,114,255,.1); }
+        .kv-row .kv-remove {
+            width: 30px; height: 30px; border: 0; border-radius: var(--radius-sm); cursor: pointer;
+            background: transparent; color: var(--text-muted); font-size: 16px;
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+        }
+        .kv-row .kv-remove:hover { color: var(--danger); background: #fef2f2; }
+        .kv-add {
+            border: 1px dashed var(--border); border-radius: var(--radius-sm); padding: 7px;
+            cursor: pointer; color: var(--text-muted); font-size: 12px; text-align: center;
+            transition: var(--transition); background: transparent; width: 100%; margin-top: 2px;
+        }
+        .kv-add:hover { color: var(--primary); border-color: var(--primary); background: var(--primary-light); }
+
+        /* ── Body editor ── */
+        .body-editor {
+            width: 100%; min-height: 180px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+            padding: 12px; font-family: var(--font-mono); font-size: 13px; resize: vertical;
+            background: #fafbfc; line-height: 1.55; tab-size: 2;
+        }
+        .body-editor:focus { outline: none; border-color: var(--primary); background: #fff; }
+
+        /* ── Response ── */
+        .response-meta {
+            display: flex; align-items: center; gap: 12px; padding: 10px 16px; flex-wrap: wrap;
+        }
+        .status-badge {
+            display: inline-flex; align-items: center; gap: 5px; font-weight: 700; font-size: 14px;
+            padding: 3px 10px; border-radius: var(--radius-sm);
+        }
+        .status-badge.info { background: #eff6ff; color: #2563eb; }
+        .status-badge.success { background: #ecfdf5; color: #059669; }
+        .status-badge.redirect { background: #eff6ff; color: #4f46e5; }
+        .status-badge.client-error { background: #fefce8; color: #d97706; }
+        .status-badge.server-error { background: #fef2f2; color: #dc2626; }
+        .response-time { font-size: 12px; color: var(--text-muted); }
+        .response-size { font-size: 12px; color: var(--text-muted); }
+
+        .response-headers { font-family: var(--font-mono); font-size: 12px; white-space: pre-wrap; word-break: break-all; color: var(--text-secondary); line-height: 1.6; }
+        .response-body {
+            margin: 0; padding: 16px; min-height: 200px; max-height: 60vh; overflow: auto;
+            white-space: pre-wrap; word-break: break-word;
+            font: 13px/1.6 var(--font-mono); background: #1e1e2e; color: #cdd6f4;
+            border-radius: 0 0 var(--radius) var(--radius);
+        }
+        .response-body.empty { color: var(--text-muted); font-style: italic; }
+
+        /* ── Script Runner UI Styles ── */
+        .script-config-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; padding: 14px 16px;
+        }
+        .config-item { display: flex; flex-direction: column; gap: 4px; }
+        .config-item label { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+        .config-item input, .config-item select {
+            border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 10px; font-size: 13px;
+        }
+
+        .step-list { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; }
+        .step-card {
+            border: 1px solid var(--border); border-radius: var(--radius-sm); background: #fff;
+            padding: 10px 14px; display: flex; flex-direction: column; gap: 8px;
+        }
+        .step-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+        .step-title { font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 8px; flex: 1; }
+        .step-actions { display: flex; gap: 4px; }
+        .step-actions button {
+            border: 0; background: #f0f2f5; border-radius: 3px; padding: 3px 8px; font-size: 11px; cursor: pointer; color: var(--text-secondary);
+        }
+        .step-actions button.danger:hover { background: #fef2f2; color: var(--danger); }
+
+        .step-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; }
+        .extract-row { display: flex; gap: 4px; align-items: center; margin-bottom: 4px; }
+        .extract-row input { border: 1px solid var(--border); border-radius: 3px; padding: 4px 6px; font-size: 11px; flex: 1; }
+
+        /* Log Console */
+        .log-console {
+            background: #1e1e2e; color: #a6adc8; font-family: var(--font-mono); font-size: 12px;
+            padding: 12px; height: 260px; overflow-y: auto; border-radius: 0 0 var(--radius) var(--radius);
+            line-height: 1.5;
+        }
+        .log-line { margin-bottom: 4px; word-break: break-all; }
+        .log-line.info { color: #89b4fa; }
+        .log-line.success { color: #a6e3a1; }
+        .log-line.warn { color: #f9e2af; }
+        .log-line.error { color: #f38ba8; }
+        .log-line.time { color: #6c7086; }
+
+        /* Progress Bar */
+        .progress-bar-bg { height: 6px; background: #e2e6ed; width: 100%; overflow: hidden; }
+        .progress-bar-fill { height: 100%; background: var(--primary); width: 0%; transition: width 200ms ease; }
+
+        /* ── Aux buttons ── */
+        .aux-bar { display: flex; gap: 6px; padding: 8px 16px; flex-wrap: wrap; align-items: center; }
+        .aux-bar input[type="text"] {
+            border: 1px solid var(--border); border-radius: var(--radius-sm);
+            padding: 6px 10px; font-size: 12px; width: 180px;
+        }
+        .aux-bar input:focus { outline: none; border-color: var(--primary); }
+        .btn-sm {
+            border: 0; border-radius: var(--radius-sm); padding: 6px 12px; font-size: 12px;
+            cursor: pointer; font-weight: 600; transition: var(--transition);
+            background: #f0f2f5; color: var(--text-secondary);
+        }
+        .btn-sm:hover { background: #e2e6ed; color: var(--text); }
+        .btn-sm.primary { background: var(--primary); color: #fff; }
+        .btn-sm.primary:hover { filter: brightness(1.1); }
+        .btn-sm.success { background: var(--success); color: #fff; }
+        .btn-sm.danger { background: var(--danger); color: #fff; }
+
+        /* ── Toast ── */
+        .toast {
+            position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+            background: #1e2329; color: #fff; padding: 10px 24px; border-radius: 20px;
+            font-size: 13px; font-weight: 600; z-index: 999; pointer-events: none;
+            opacity: 0; transition: opacity 200ms ease;
+        }
+        .toast.show { opacity: 1; }
+
+        /* ── Mobile sidebar toggle ── */
+        .sidebar-toggle {
+            display: none; position: fixed; bottom: 20px; right: 20px; z-index: 200;
+            width: 48px; height: 48px; border-radius: 50%; border: 0; cursor: pointer;
+            background: var(--primary); color: #fff; font-size: 20px; box-shadow: 0 4px 12px rgba(55,114,255,.35);
+        }
+
+        /* method colors */
+        .method-get { color: #02c076 !important; }
+        .method-post { color: #3772ff !important; }
+        .method-put { color: #f0b90b !important; }
+        .method-patch { color: #e68a2e !important; }
+        .method-delete { color: #e5493a !important; }
+        .method-badge { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 3px; text-transform: uppercase; }
+        .method-badge.get { background: #dcfce7; color: #059669; }
+        .method-badge.post { background: #dbeafe; color: #2563eb; }
+        .method-badge.put { background: #fef9c3; color: #a16207; }
+        .method-badge.patch { background: #fef3c7; color: #b45309; }
+        .method-badge.delete { background: #fecaca; color: #dc2626; }
+
+        /* method select color */
+        #method { font-weight: 700; }
+        #method option[value="GET"] { color: #02c076; }
+        #method option[value="POST"] { color: #3772ff; }
+        #method option[value="PUT"] { color: #f0b90b; }
+        #method option[value="PATCH"] { color: #e68a2e; }
+        #method option[value="DELETE"] { color: #e5493a; }
+
+        /* ── Responsive ── */
+        @media (max-width: 768px) {
+            .sidebar { position: fixed; left: 0; top: 48px; bottom: 0; z-index: 150; transform: translateX(-100%); width: 85%; max-width: 320px; box-shadow: 4px 0 20px rgba(0,0,0,.15); }
+            .sidebar.open { transform: translateX(0); }
+            .sidebar-toggle { display: flex; align-items: center; justify-content: center; }
+            .sidebar-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 149; }
+            .sidebar-backdrop.open { display: block; }
+            .request-line { flex-wrap: wrap; }
+            .request-line select { width: 100%; }
+            .request-line input[type="text"] { min-width: 100%; }
+            .main-area { padding: 10px 8px 80px; gap: 8px; }
+            .kv-row { flex-wrap: wrap; }
+            .kv-row input { min-width: calc(50% - 20px); }
+            .step-detail-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<nav>
+    <span class="logo">抓包助手</span>
+    <a href="index">网络数据</a>
+    <a href="im_index">IM消息</a>
+    <a href="sp_index">本地文件</a>
+    <a class="active" href="#">接口调试</a>
+    <a href="performance_index" target="_blank">📊 性能与诊断</a>
+
+    <div class="mode-switch">
+        <button class="mode-btn active" id="btnSingleMode" onclick="switchViewMode('single')">⚡ 单接口调试</button>
+        <button class="mode-btn" id="btnScriptMode" onclick="switchViewMode('script')">🔄 脚本自动化</button>
+    </div>
+</nav>
+
+<div class="app-layout">
+
+<!-- ── Sidebar: Saved Requests / Saved Scripts ── -->
+<div class="sidebar-backdrop" id="sidebarBackdrop" onclick="toggleSidebar()"></div>
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+        <h3 id="sidebarTitle">已保存接口</h3>
+        <div class="sidebar-actions">
+            <button class="secondary" onclick="ensureRaceGameDemoPresets()" title="可选导入赛车脚本示例">🧩 示例</button>
+            <button class="secondary" onclick="exportData()" title="导出 JSON">📤 导出</button>
+            <button class="secondary" onclick="triggerImport()" title="导入 JSON">📥 导入</button>
+            <button id="btnSidebarNew" onclick="onSidebarNewClick()" title="新建">+ 新建</button>
+        </div>
+        <input type="file" id="importFileInput" accept=".json" style="display:none;" onchange="handleImportFile(event)">
+    </div>
+    <div class="saved-list" id="savedList">
+        <div style="padding:20px;text-align:center;color:var(--text-muted);font-size:12px;">暂无保存记录</div>
+    </div>
+</aside>
+
+<!-- ── Main Area ── -->
+<main class="main-area">
+
+<!-- ========================= SINGLE MODE ========================= -->
+<div id="singleModeArea" style="display: flex; flex-direction: column; gap: 12px;">
+    <!-- Request Card -->
+    <div class="card">
+        <div class="request-line">
+            <select id="method">
+                <option value="GET">GET</option>
+                <option value="POST" selected>POST</option>
+                <option value="PUT">PUT</option>
+                <option value="PATCH">PATCH</option>
+                <option value="DELETE">DELETE</option>
+            </select>
+            <input type="text" id="url" placeholder="输入 URL 或相对路径，如 /api/user/info" autocomplete="off" spellcheck="false">
+            <button class="btn-send" id="send" onclick="sendRequest()">发 送</button>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab active" data-tab="params" onclick="switchTab('params')">Params</button>
+            <button class="tab" data-tab="headers" onclick="switchTab('headers')">Headers</button>
+            <button class="tab" data-tab="body" onclick="switchTab('body')">Body</button>
+        </div>
+
+        <!-- Params tab -->
+        <div class="tab-content active" id="tab-params">
+            <div class="kv-editor" id="kvParams"></div>
+            <button class="kv-add" onclick="addKvRow('kvParams')">+ 添加参数</button>
+        </div>
+
+        <!-- Headers tab -->
+        <div class="tab-content" id="tab-headers">
+            <div class="kv-editor" id="kvHeaders"></div>
+            <button class="kv-add" onclick="addKvRow('kvHeaders')">+ 添加 Header</button>
+            <div style="margin-top:10px;font-size:12px;color:var(--text-muted);line-height:1.6;padding:8px 12px;background:var(--card-bg, #f8f9fa);border-radius:var(--radius-sm);border:1px dashed var(--border);">
+                💡 <strong>提示：</strong>公共请求头及 <strong>V2 签名加密头</strong>（<code>X-Crypto-Version</code>、<code>X-Crypto-Session-Id</code>、<code>X-Timestamp</code>、<code>X-Request-Id</code>、<code>Content-Digest</code>、<code>X-Signature</code>）由底层 V2 拦截器自动注入与签名，登录/续期接口会自动声明 <code>X-Crypto-Capabilities: crypto-v2</code>，无需在此手动输入；发送后可在下方「实际发送的请求」中查看完整的已签名 Headers。
+            </div>
+        </div>
+
+        <!-- Body tab -->
+        <div class="tab-content" id="tab-body">
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+                <select id="contentType" style="flex:1;border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;">
+                    <option value="application/json; charset=utf-8" selected>application/json</option>
+                    <option value="application/x-www-form-urlencoded">application/x-www-form-urlencoded</option>
+                    <option value="text/plain; charset=utf-8">text/plain</option>
+                    <option value="application/xml">application/xml</option>
+                    <option value="multipart/form-data">multipart/form-data</option>
+                </select>
+                <button class="btn-sm" onclick="formatJsonBody()" title="格式化 JSON">格式化</button>
+            </div>
+            <textarea class="body-editor" id="body" placeholder='{"key": "value"}'>{}</textarea>
+        </div>
+
+        <!-- Aux bar: save / timeout -->
+        <div class="aux-bar">
+            <input type="text" id="saveName" placeholder="接口名称（保存用）">
+            <button class="btn-sm primary" id="btnSave" onclick="saveRequest()">💾 保存接口</button>
+            <span style="flex:1;"></span>
+            <label style="font-size:11px;color:var(--text-muted);">超时(ms):</label>
+            <input type="number" id="timeout" value="60000" min="1000" max="300000" step="1000"
+                style="width:90px;border:1px solid var(--border);border-radius:var(--radius-sm);padding:5px 8px;font-size:12px;">
+        </div>
+    </div>
+
+    <!-- Response Card -->
+    <div class="card" id="responseCard">
+        <div class="card-header">
+            <span>Response</span>
+            <div style="display:flex;gap:6px;">
+                <span class="response-time" id="responseMeta" style="display:none;"></span>
+                <button class="btn-sm" onclick="copyResponse()" id="btnCopy" style="display:none;">📋 复制</button>
+            </div>
+        </div>
+        <div class="response-meta" id="responseStatus" style="display:none;"></div>
+        <div class="tabs" id="responseTabs" style="display:none;">
+            <button class="tab active" data-rtab="body" onclick="switchResponseTab('body')">Body</button>
+            <button class="tab" data-rtab="headers" onclick="switchResponseTab('headers')">Headers</button>
+            <button class="tab" data-rtab="sent" onclick="switchResponseTab('sent')">📤 实际发送</button>
+        </div>
+        <div id="rtab-body" class="response-tab-content active">
+            <pre class="response-body empty" id="responseBody">尚未发送请求</pre>
+        </div>
+        <div id="rtab-headers" class="response-tab-content" style="display:none;">
+            <div class="response-headers" id="responseHeaders" style="padding:12px 16px;min-height:200px;"></div>
+        </div>
+        <div id="rtab-sent" class="response-tab-content" style="display:none;">
+            <div style="padding:12px 16px;">
+                <div style="font-weight:600;font-size:12px;color:var(--text-secondary);margin-bottom:6px;">📤 实际发送的请求（经过拦截器处理：公参 + 签名 + 域名切换）</div>
+                <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;word-break:break-all;" id="sentUrl"></div>
+                <div class="response-headers" id="sentHeaders" style="margin-bottom:8px;max-height:150px;overflow:auto;"></div>
+                <pre class="response-body" id="sentBody" style="max-height:300px;">尚未发送</pre>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========================= SCRIPT MODE ========================= -->
+<div id="scriptModeArea" style="display: none; flex-direction: column; gap: 12px;">
+    <!-- Global Script Config -->
+    <div class="card">
+        <div class="card-header">
+            <span>⚙️ 脚本配置与运行控制</span>
+            <div style="display:flex; gap:8px;">
+                <input type="text" id="scriptName" placeholder="脚本名称" style="border:1px solid var(--border); border-radius:var(--radius-sm); padding:4px 8px; font-size:12px; width:160px;">
+                <button class="btn-sm primary" onclick="saveCurrentScript()">💾 保存脚本</button>
+            </div>
+        </div>
+
+        <div class="script-config-grid">
+            <div class="config-item">
+                <label>循环次数 (1为不循环, 0表示无限循环):</label>
+                <input type="number" id="scriptLoopCount" value="1" min="0" max="99999">
+            </div>
+            <div class="config-item">
+                <label>循环间隔时间 (毫秒 ms):</label>
+                <input type="number" id="scriptLoopInterval" value="1000" min="0" step="500">
+            </div>
+            <div class="config-item">
+                <label>延迟首次启动 (毫秒 ms):</label>
+                <input type="number" id="scriptStartDelay" value="0" min="0" step="500">
+            </div>
+            <div class="config-item">
+                <label>异常失败处理策略:</label>
+                <select id="scriptErrorPolicy">
+                    <option value="stop" selected>发生错误立即终止</option>
+                    <option value="continue">忽略错误继续执行下一个步骤</option>
+                </select>
+            </div>
+        </div>
+
+        <div style="padding: 10px 16px 14px; border-top: 1px solid var(--border); display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <button class="btn-sm success" id="btnRunScript" onclick="startScriptExecution()" style="padding:8px 20px; font-weight:700;">▶️ 开始运行脚本</button>
+            <button class="btn-sm danger" id="btnStopScript" onclick="stopScriptExecution()" disabled style="padding:8px 16px; font-weight:700;">⏹️ 停止</button>
+            <span style="flex:1;"></span>
+            <span id="scriptRunStatus" style="font-size:12px; font-weight:600; color:var(--text-secondary);">状态: 就绪</span>
+        </div>
+
+        <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="scriptProgressBar"></div>
+        </div>
+    </div>
+
+    <!-- Live Data Chart Panel (默认隐藏，有图表配置或数据时自动展开) -->
+    <div class="card" id="scriptChartPanelCard" style="display: none;">
+        <div class="card-header">
+            <span>📈 实时监控</span>
+            <div style="display:flex; gap:8px; align-items:center;">
+                <span id="chartDiffBadge" style="font-size:12px; font-weight:700; color:var(--text-secondary);">初始: -- | 盈亏: 0</span>
+                <select id="chartTypeSelect" onchange="changeChartType(this.value)" style="border:1px solid var(--border); border-radius:3px; padding:2px 5px; font-size:11px; cursor:pointer;">
+                    <option value="line">📈 折线图</option>
+                    <option value="bar">📊 柱状图</option>
+                    <option value="pie">🥧 饼图</option>
+                </select>
+                <button class="btn-sm" onclick="resetChartData()">🧹 重置</button>
+                <button class="btn-sm danger" onclick="hideChartPanel()">✕</button>
+            </div>
+        </div>
+
+        <div id="chartSingleContainer" style="padding:10px 14px; height:200px; position:relative;">
+            <canvas id="scriptLiveChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Step Editor -->
+    <div class="card">
+        <div class="card-header">
+            <span>📋 接口步骤编排 (顺序执行 & 变量关联)</span>
+            <button class="btn-sm" onclick="addScriptStep()">+ 添加接口步骤</button>
+        </div>
+        <div class="step-list" id="stepList">
+            <!-- Dynamic Steps -->
+        </div>
+    </div>
+
+    <!-- Console Log & Output -->
+    <div class="card">
+        <div class="card-header">
+            <span>🖥️ 运行日志面板</span>
+            <div style="display:flex; gap:6px;">
+                <button class="btn-sm" onclick="clearScriptLogs()">🧹 清除日志</button>
+            </div>
+        </div>
+        <div class="log-console" id="scriptLogConsole">
+            <div class="log-line time">[系统就绪] 点击 "开始运行脚本" 触发自动化管道...</div>
+        </div>
+    </div>
+</div>
+
+</main>
+</div>
+
+<button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()" title="已保存接口">☰</button>
+<div class="toast" id="toast"></div>
+
+<script>
+    // ── State ──
+    const STORAGE_KEY = 'monitor_api_debug_requests_v1';
+    const SCRIPT_STORAGE_KEY = 'monitor_api_debug_scripts_v1';
+
+    let currentViewMode = 'single'; // 'single' | 'script'
+    let editingId = null;
+    let editingCreatedAt = 0;
+    let activeTab = 'params';
+    let activeResponseTab = 'body';
+
+    // Script Mode States
+    let editingScriptId = null;
+    let currentScriptSteps = [];
+    let isScriptRunning = false;
+    let scriptAbortController = null;
+    let activeScriptRequestId = null;
+    let scriptRunToken = 0;
+    let scriptWasStopped = false;
+
+    const $ = id => document.getElementById(id);
+    const ELS = {};
+    ['method','url','contentType','body','timeout','saveName','send','savedList','responseBody',
+     'responseHeaders','responseStatus','responseMeta','responseTabs','btnCopy','sidebarBackdrop','sidebar','toast',
+     'sentBody','sentUrl','sentHeaders'].forEach(id => ELS[id] = $(id));
+
+    // ── Mode Switch ──
+    function switchViewMode(mode) {
+        currentViewMode = mode;
+        if (mode === 'single') {
+            $('btnSingleMode').classList.add('active');
+            $('btnScriptMode').classList.remove('active');
+            $('singleModeArea').style.display = 'flex';
+            $('scriptModeArea').style.display = 'none';
+            $('sidebarTitle').textContent = '已保存接口';
+            renderSidebar();
+        } else {
+            $('btnSingleMode').classList.remove('active');
+            $('btnScriptMode').classList.add('active');
+            $('singleModeArea').style.display = 'none';
+            $('scriptModeArea').style.display = 'flex';
+            $('sidebarTitle').textContent = '已保存脚本';
+            renderScriptSidebar();
+        }
+    }
+
+    function onSidebarNewClick() {
+        if (currentViewMode === 'single') {
+            resetForm();
+        } else {
+            resetScriptForm();
+        }
+    }
+
+    // ── Method color & Tab auto-switch on select ──
+    ELS.method.addEventListener('change', function() {
+        const m = this.value;
+        this.className = '';
+        const cls = {GET:'method-get',POST:'method-post',PUT:'method-put',PATCH:'method-patch',DELETE:'method-delete'}[m] || '';
+        if (cls) this.classList.add(cls);
+
+        // GET 模式下默认展示 Params Tab，POST/PUT/PATCH 等模式下默认展示 Body Tab
+        if (m === 'GET') {
+            switchTab('params');
+        } else {
+            switchTab('body');
+        }
+    });
+    ELS.method.dispatchEvent(new Event('change'));
+
+    // ── URL Enter to send ──
+    $('url').addEventListener('keydown', function(e) { if (e.key === 'Enter') sendRequest(); });
+
+    // ── KV Editor Helpers ──
+    function kvLines(containerId) {
+        const rows = document.querySelectorAll(`#${containerId} .kv-row`);
+        const lines = [];
+        rows.forEach(row => {
+            const inputs = row.querySelectorAll('input');
+            const key = inputs[0].value.trim();
+            const val = inputs[1].value.trim();
+            if (key) lines.push(key + '=' + val);
+        });
+        return lines;
+    }
+
+    function kvLinesHeaders(containerId) {
+        const rows = document.querySelectorAll(`#${containerId} .kv-row`);
+        const lines = [];
+        rows.forEach(row => {
+            const inputs = row.querySelectorAll('input');
+            const key = inputs[0].value.trim();
+            const val = inputs[1].value.trim();
+            if (key) lines.push(key + ': ' + val);
+        });
+        return lines;
+    }
+
+    function addKvRow(containerId) {
+        const container = document.getElementById(containerId);
+        const row = document.createElement('div');
+        row.className = 'kv-row';
+        row.innerHTML = `<input placeholder="Key" style="flex:0.35"><input placeholder="Value" style="flex:1"><button class="kv-remove" onclick="this.closest('.kv-row').remove()" title="移除">×</button>`;
+        container.appendChild(row);
+        row.querySelector('input').focus();
+    }
+
+    function setKvFromLines(containerId, text, sep) {
+        const container = document.getElementById(containerId);
+        container.innerHTML = '';
+        if (!text || !text.trim()) { addKvRow(containerId); addKvRow(containerId); return; }
+        const lines = text.split('\n').filter(l => l.trim());
+        lines.forEach(line => {
+            const idx = line.indexOf(sep);
+            if (idx <= 0) return;
+            const key = line.substring(0, idx).trim();
+            const val = line.substring(idx + 1).trim();
+            const row = document.createElement('div');
+            row.className = 'kv-row';
+            row.innerHTML = `<input value="${escapeHtml(key)}" style="flex:0.35"><input value="${escapeHtml(val)}" style="flex:1"><button class="kv-remove" onclick="this.closest('.kv-row').remove()" title="移除">×</button>`;
+            container.appendChild(row);
+        });
+        if (container.children.length === 0) { addKvRow(containerId); addKvRow(containerId); }
+    }
+
+    function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+    // ── Tab switching ──
+    function switchTab(name) {
+        activeTab = name;
+        document.querySelectorAll('.tab[data-tab]').forEach(t => t.classList.remove('active'));
+        document.querySelector(`.tab[data-tab="${name}"]`).classList.add('active');
+        document.querySelectorAll('#tab-params, #tab-headers, #tab-body').forEach(el => el.classList.remove('active'));
+        document.getElementById('tab-' + name).classList.add('active');
+    }
+
+    function switchResponseTab(name) {
+        activeResponseTab = name;
+        document.querySelectorAll('.tab[data-rtab]').forEach(t => t.classList.remove('active'));
+        const targetTab = document.querySelector(`.tab[data-rtab="${name}"]`);
+        if (targetTab) targetTab.classList.add('active');
+        document.getElementById('rtab-body').style.display = name === 'body' ? 'block' : 'none';
+        document.getElementById('rtab-headers').style.display = name === 'headers' ? 'block' : 'none';
+        document.getElementById('rtab-sent').style.display = name === 'sent' ? 'block' : 'none';
+    }
+
+    // ── Get current request state ──
+    function getFormData() {
+        return {
+            method: ELS.method.value,
+            url: ELS.url.value,
+            query: kvLines('kvParams').join('\n'),
+            headers: kvLinesHeaders('kvHeaders').join('\n'),
+            body: ELS.body.value,
+            contentType: ELS.contentType.value,
+            timeout: ELS.timeout.value,
+            saveName: ELS.saveName.value,
+        };
+    }
+
+    function loadForm(data) {
+        ELS.method.value = data.method || 'POST';
+        ELS.method.dispatchEvent(new Event('change'));
+        ELS.url.value = data.url || '';
+        ELS.body.value = data.body || '{}';
+        ELS.contentType.value = data.contentType || 'application/json; charset=utf-8';
+        ELS.timeout.value = data.timeout || '60000';
+        ELS.saveName.value = data.saveName || '';
+        setKvFromLines('kvParams', data.query || '', '=');
+        setKvFromLines('kvHeaders', data.headers || '', ':');
+        editingId = data.id || null;
+        editingCreatedAt = data.createdAt || 0;
+    }
+
+    function resetForm() {
+        editingId = null;
+        editingCreatedAt = 0;
+        loadForm({method:'POST', contentType:'application/json; charset=utf-8', body:'{}', timeout:'60000'});
+        clearResponse();
+        highlightSidebar(null);
+        window.scrollTo({top: 0, behavior: 'smooth'});
+    }
+
+    function clearResponse() {
+        ELS.responseStatus.style.display = 'none';
+        ELS.responseStatus.innerHTML = '';
+        ELS.responseMeta.style.display = 'none';
+        ELS.responseMeta.textContent = '';
+        ELS.responseTabs.style.display = 'none';
+        ELS.btnCopy.style.display = 'none';
+        ELS.responseBody.className = 'response-body empty';
+        ELS.responseBody.textContent = '尚未发送请求';
+        ELS.responseHeaders.textContent = '';
+        ELS.sentBody.textContent = '尚未发送';
+        ELS.sentUrl.textContent = '';
+        ELS.sentHeaders.textContent = '';
+        switchResponseTab('body');
+    }
+
+    // ── Send request ──
+    async function sendRequest() {
+        if (!ELS.url.value.trim()) { toast('请输入 URL'); return; }
+
+        const btn = ELS.send;
+        btn.disabled = true;
+        btn.textContent = '发送中…';
+        btn.classList.add('sending');
+        ELS.responseBody.className = 'response-body';
+        ELS.responseBody.textContent = '请求中…';
+        ELS.responseStatus.style.display = 'none';
+        ELS.responseTabs.style.display = 'none';
+        ELS.sentBody.textContent = '';
+        ELS.sentUrl.textContent = '';
+        ELS.sentHeaders.textContent = '';
+        ELS.responseHeaders.textContent = '';
+
+        const data = getFormData();
+        const form = new URLSearchParams({
+            httpMethod: data.method,
+            url: data.url,
+            query: data.query,
+            headers: data.headers,
+            body: data.body,
+            contentType: data.contentType,
+            timeoutMillis: data.timeout
+        });
+
+        try {
+            const response = await fetch('/apiDebugExecute', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+                body: form
+            });
+            const envelope = await response.json();
+            const result = envelope.data || envelope;
+            renderResponse(result);
+        } catch (error) {
+            ELS.responseBody.className = 'response-body empty';
+            ELS.responseBody.textContent = '调用本地服务失败: ' + String(error);
+            ELS.responseStatus.style.display = 'block';
+            ELS.responseStatus.innerHTML = '<span class="status-badge server-error">连接失败</span>';
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '发 送';
+            btn.classList.remove('sending');
+        }
+    }
+
+    function renderResponse(result) {
+        ELS.responseStatus.style.display = 'flex';
+        if (result.error) {
+            ELS.responseStatus.innerHTML = '<span class="status-badge server-error">错误</span> <span style="font-size:13px;">' + escapeHtml(result.error) + '</span>';
+            ELS.responseMeta.style.display = 'none';
+            ELS.responseTabs.style.display = 'none';
+            ELS.responseBody.className = 'response-body empty';
+            ELS.responseBody.textContent = result.error;
+            ELS.responseHeaders.textContent = '';
+            ELS.btnCopy.style.display = 'none';
+            if (result.sentBody || result.sentUrl || result.sentHeaders) {
+                ELS.sentUrl.textContent = 'URL: ' + (result.sentUrl || '');
+                ELS.sentHeaders.textContent = result.sentHeaders || '';
+                let sentBody = result.sentBody || '';
+                try { sentBody = JSON.stringify(JSON.parse(sentBody), null, 2); } catch (_) {}
+                ELS.sentBody.textContent = sentBody || '(空 body)';
+                ELS.sentBody.className = 'response-body';
+            }
+            return;
+        }
+
+        const code = result.code || 0;
+        let badgeClass = 'info';
+        if (code >= 200 && code < 300) badgeClass = 'success';
+        else if (code >= 300 && code < 400) badgeClass = 'redirect';
+        else if (code >= 400 && code < 500) badgeClass = 'client-error';
+        else if (code >= 500) badgeClass = 'server-error';
+
+        ELS.responseStatus.innerHTML = `<span class="status-badge ${badgeClass}">${code} ${escapeHtml(result.message || '')}</span>`;
+
+        const size = result.body ? new Blob([result.body]).size : 0;
+        const sizeText = size > 1024 ? (size/1024).toFixed(1) + ' KB' : size + ' B';
+        ELS.responseMeta.style.display = 'inline';
+        ELS.responseMeta.textContent = (result.durationMillis != null ? result.durationMillis + 'ms' : '') + ' · ' + sizeText;
+
+        ELS.responseHeaders.textContent = result.headers || '(无响应头)';
+        ELS.responseBody.className = 'response-body';
+        let body = result.body || '';
+        try { body = JSON.stringify(JSON.parse(body), null, 2); } catch (_) {}
+        ELS.responseBody.textContent = body || '(空响应)';
+
+        if (result.sentBody || result.sentUrl) {
+            ELS.sentUrl.textContent = 'URL: ' + (result.sentUrl || '');
+            ELS.sentHeaders.textContent = result.sentHeaders || '';
+            let sentBody = result.sentBody || '';
+            try { sentBody = JSON.stringify(JSON.parse(sentBody), null, 2); } catch (_) {}
+            ELS.sentBody.textContent = sentBody || '(空 body)';
+            ELS.sentBody.className = 'response-body';
+        } else {
+            ELS.sentUrl.textContent = '（拦截器链未捕获到请求数据，请检查 ApiDebugProvider 是否已注册）';
+            ELS.sentHeaders.textContent = '';
+            ELS.sentBody.textContent = '';
+            ELS.sentBody.className = 'response-body empty';
+        }
+
+        ELS.responseTabs.style.display = 'flex';
+        ELS.btnCopy.style.display = 'inline';
+        switchResponseTab('body');
+    }
+
+    function formatJsonBody() {
+        try {
+            const parsed = JSON.parse(ELS.body.value);
+            ELS.body.value = JSON.stringify(parsed, null, 2);
+            toast('JSON 已格式化');
+        } catch (_) {
+            toast('JSON 格式无效，无法格式化');
+        }
+    }
+
+    function copyResponse() {
+        const text = ELS.responseBody.textContent;
+        if (!text || text === '尚未发送请求') { toast('无内容可复制'); return; }
+        navigator.clipboard.writeText(text).then(() => toast('已复制到剪贴板')).catch(() => toast('复制失败'));
+    }
+
+    // ── Saved Requests Storage ──
+    function allSaved() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch (_) { return []; } }
+    function persist(items) { localStorage.setItem(STORAGE_KEY, JSON.stringify(items)); renderSidebar(); }
+
+    function saveRequest() {
+        const data = getFormData();
+        if (!data.saveName.trim()) { toast('请输入接口名称'); return; }
+        const items = allSaved();
+        const now = Date.now();
+        if (editingId) {
+            const idx = items.findIndex(i => i.id === editingId);
+            if (idx >= 0) { items[idx] = { ...data, id: editingId, updatedAt: now, createdAt: items[idx].createdAt || now }; }
+            else { editingId = null; }
+        }
+        if (!editingId) {
+            editingId = String(now) + '_' + Math.random().toString(36).slice(2, 8);
+            items.unshift({ ...data, id: editingId, updatedAt: now, createdAt: now });
+        }
+        persist(items);
+        toast('接口已保存');
+    }
+
+    function loadSaved(item) {
+        loadForm(item);
+        highlightSidebar(item.id);
+        if (window.innerWidth <= 768) toggleSidebar();
+        window.scrollTo({top: 0, behavior: 'smooth'});
+    }
+
+    function deleteSaved(id) {
+        if (!confirm('确认删除该接口？')) return;
+        const items = allSaved();
+        persist(items.filter(i => i.id !== id));
+        if (editingId === id) { editingId = null; editingCreatedAt = 0; ELS.saveName.value = ''; }
+        toast('已删除');
+    }
+
+    function highlightSidebar(id) {
+        document.querySelectorAll('.saved-item').forEach(el => el.classList.remove('active'));
+        if (id) {
+            const el = document.querySelector(`.saved-item[data-id="${id}"]`);
+            if (el) el.classList.add('active');
+        }
+    }
+
+    function renderSidebar() {
+        const items = allSaved();
+        const container = ELS.savedList;
+        container.innerHTML = '';
+        if (!items.length) {
+            container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:12px;">暂无保存接口</div>';
+            return;
+        }
+        items.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'saved-item';
+            div.setAttribute('data-id', item.id);
+            if (item.id === editingId) div.classList.add('active');
+            div.onclick = (e) => { if (!e.target.closest('button')) loadSaved(item); };
+            const methodCls = (item.method || 'GET').toLowerCase();
+            div.innerHTML = `
+                <div><span class="method-badge ${methodCls}">${escapeHtml(item.method || 'GET')}</span> <span class="name">${escapeHtml(item.saveName || '未命名')}</span></div>
+                <div class="url-preview">${escapeHtml(item.url || '')}</div>
+                <div class="actions">
+                    <button onclick="event.stopPropagation();loadSaved(allSaved().find(i=>i.id==='${item.id}'))">载入</button>
+                    <button onclick="event.stopPropagation();exportSingleItem('${item.id}', 'request')">导出</button>
+                    <button class="danger" onclick="event.stopPropagation();deleteSaved('${item.id}')">删除</button>
+                </div>`;
+            container.appendChild(div);
+        });
+    }
+
+    // =========================================================================
+    // ── Script Runner Mode Implementation ──
+    // =========================================================================
+
+    function allSavedScripts() { try { return JSON.parse(localStorage.getItem(SCRIPT_STORAGE_KEY) || '[]'); } catch (_) { return []; } }
+    function persistScripts(items) { localStorage.setItem(SCRIPT_STORAGE_KEY, JSON.stringify(items)); renderScriptSidebar(); }
+
+    function renderScriptSidebar() {
+        const items = allSavedScripts();
+        const container = ELS.savedList;
+        container.innerHTML = '';
+        if (!items.length) {
+            container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:12px;">暂无保存脚本</div>';
+            return;
+        }
+        items.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'saved-item';
+            div.setAttribute('data-id', item.id);
+            if (item.id === editingScriptId) div.classList.add('active');
+            div.onclick = (e) => { if (!e.target.closest('button')) loadSavedScript(item); };
+            div.innerHTML = `
+                <div><span class="method-badge post">SCRIPT</span> <span class="name">${escapeHtml(item.name || '未命名脚本')}</span></div>
+                <div class="url-preview">包含 ${item.steps ? item.steps.length : 0} 个步骤 · 循环: ${item.loopCount ?? 1} 次</div>
+                <div class="actions">
+                    <button onclick="event.stopPropagation();loadSavedScript(allSavedScripts().find(i=>i.id==='${item.id}'))">载入</button>
+                    <button onclick="event.stopPropagation();exportSingleItem('${item.id}', 'script')">导出</button>
+                    <button class="danger" onclick="event.stopPropagation();deleteSavedScript('${item.id}')">删除</button>
+                </div>`;
+            container.appendChild(div);
+        });
+    }
+
+    function resetScriptForm() {
+        editingScriptId = null;
+        $('scriptName').value = '';
+        $('scriptLoopCount').value = 1;
+        $('scriptLoopInterval').value = 1000;
+        $('scriptStartDelay').value = 0;
+        $('scriptErrorPolicy').value = 'stop';
+        currentScriptSteps = [];
+        renderScriptSteps();
+        highlightSidebar(null);
+    }
+
+    function saveCurrentScript() {
+        const name = $('scriptName').value.trim();
+        if (!name) { toast('请输入脚本名称'); return; }
+        if (currentScriptSteps.length === 0) { toast('请至少添加一个接口步骤'); return; }
+
+        const scripts = allSavedScripts();
+        // 脚本重名检查
+        const duplicateScript = scripts.find(s => s.name === name && s.id !== editingScriptId);
+        if (duplicateScript) {
+            if (!confirm(`已存在同名脚本 [${name}]，是否确定覆盖该保存项？`)) {
+                return;
+            }
+            editingScriptId = duplicateScript.id;
+        }
+
+        const scriptData = {
+            id: editingScriptId || ('script_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6)),
+            name: name,
+            loopCount: readNonNegativeInt('scriptLoopCount', 1),
+            loopInterval: readNonNegativeInt('scriptLoopInterval', 1000),
+            startDelay: readNonNegativeInt('scriptStartDelay', 0),
+            errorPolicy: $('scriptErrorPolicy').value,
+            steps: currentScriptSteps,
+            updatedAt: Date.now()
+        };
+
+        const idx = scripts.findIndex(s => s.id === scriptData.id);
+        if (idx >= 0) {
+            scripts[idx] = scriptData;
+        } else {
+            scripts.unshift(scriptData);
+        }
+
+        editingScriptId = scriptData.id;
+        persistScripts(scripts);
+        toast('脚本已保存');
+    }
+
+    function loadSavedScript(script) {
+        editingScriptId = script.id;
+        $('scriptName').value = script.name || '';
+        $('scriptLoopCount').value = script.loopCount ?? 1;
+        $('scriptLoopInterval').value = script.loopInterval ?? 1000;
+        $('scriptStartDelay').value = script.startDelay ?? 0;
+        $('scriptErrorPolicy').value = script.errorPolicy || 'stop';
+        currentScriptSteps = script.steps || [];
+        renderScriptSteps();
+        highlightSidebar(script.id);
+        if (window.innerWidth <= 768) toggleSidebar();
+    }
+
+    function deleteSavedScript(id) {
+        if (!confirm('确认删除该脚本？')) return;
+        const scripts = allSavedScripts().filter(s => s.id !== id);
+        persistScripts(scripts);
+        if (editingScriptId === id) resetScriptForm();
+        toast('脚本已删除');
+    }
+
+    // ── Script Steps UI ──
+    function renderScriptSteps() {
+        const container = $('stepList');
+        container.innerHTML = '';
+        if (!currentScriptSteps.length) {
+            container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:12px;">暂无步骤，点击右上角 "+ 添加接口步骤"</div>';
+            return;
+        }
+
+        const savedReqs = allSaved();
+
+        currentScriptSteps.forEach((step, idx) => {
+            const card = document.createElement('div');
+            card.className = 'step-card';
+
+            let reqOptionsHtml = '<option value="">-- 选择已保存接口 --</option>';
+            savedReqs.forEach(r => {
+                const selected = step.requestId === r.id ? 'selected' : '';
+                reqOptionsHtml += `<option value="${r.id}" ${selected}>[${r.method}] ${escapeHtml(r.saveName || r.url)}</option>`;
+            });
+
+            card.innerHTML = `
+                <div class="step-header">
+                    <div class="step-title">
+                        <span style="background:var(--primary);color:#fff;border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;">${idx + 1}</span>
+                        <input type="text" value="${escapeHtml(step.name || ('步骤 ' + (idx + 1)))}" onchange="updateStepProp(${idx}, 'name', this.value)" style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 8px;font-size:12px;font-weight:600;flex:1;">
+                    </div>
+                    <div class="step-actions">
+                        <button onclick="moveStep(${idx}, -1)" ${idx === 0 ? 'disabled' : ''}>↑ 上移</button>
+                        <button onclick="moveStep(${idx}, 1)" ${idx === currentScriptSteps.length - 1 ? 'disabled' : ''}>↓ 下移</button>
+                        <button class="danger" onclick="removeStep(${idx})">× 删除</button>
+                    </div>
+                </div>
+
+                <div class="step-detail-grid">
+                    <div style="display:flex; flex-direction:column; gap:4px;">
+                        <label style="font-size:11px; color:var(--text-secondary);">选择依赖接口:</label>
+                        <select onchange="updateStepProp(${idx}, 'requestId', this.value)" style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 6px;font-size:12px;">
+                            ${reqOptionsHtml}
+                        </select>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:4px;">
+                        <label style="font-size:11px; color:var(--text-secondary);">步骤前延时 (ms):</label>
+                        <input type="number" value="${step.delayMs || 0}" min="0" step="100" onchange="updateStepProp(${idx}, 'delayMs', parseInt(this.value)||0)" style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 6px;font-size:12px;">
+                    </div>
+                </div>
+
+                <!-- Scripts & Variable Extractors -->
+                <div style="margin-top:6px; background:#fafbfc; padding:8px; border-radius:4px; border:1px dashed var(--border);">
+                    <div style="font-size:10px;color:#b54708;margin-bottom:5px;">⚠️ 仅使用可信脚本；<code>@js:</code> 与前后置脚本会在当前调试页面执行。</div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                        <span style="font-size:11px; font-weight:700; color:var(--text-secondary);">变量提取 (JSON Path 如 data.token，或简易 JS 表达式如 @js: data.list[0].id):</span>
+                        <button class="btn-sm" style="padding:2px 6px; font-size:10px;" onclick="addStepExtractor(${idx})">+ 提取变量</button>
+                    </div>
+                    <div id="step-extracts-${idx}">
+                        ${(step.extracts || []).map((ex, exIdx) => `
+                            <div class="extract-row">
+                                <input placeholder="变量名(如 bestCarId)" value="${escapeHtml(ex.varName||'')}" onchange="updateStepExtract(${idx}, ${exIdx}, 'varName', this.value)">
+                                <input placeholder="路径/表达式(如 data.carId 或 @js: data.liveCarBetBeanList.reduce(...))" value="${escapeHtml(ex.path||'')}" onchange="updateStepExtract(${idx}, ${exIdx}, 'path', this.value)">
+                                <button class="kv-remove" style="width:20px;height:20px;font-size:12px;" onclick="removeStepExtract(${idx}, ${exIdx})">×</button>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <!-- Custom JS Scripts (Pre / Post) -->
+                <div style="margin-top:6px; background:#f0f7ff; padding:8px; border-radius:4px; border:1px solid #cce3ff;">
+                    <div style="font-size:11px; font-weight:700; color:var(--primary); margin-bottom:4px;">自定义 JS 脚本扩展 (直接修改/注入 vars 对象):</div>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+                        <div>
+                            <label style="font-size:10px; color:var(--text-secondary);">▶️ 请求前脚本 Pre-Script (可用: vars, log):</label>
+                            <textarea placeholder="如: vars.energy = 691;" onchange="updateStepProp(${idx}, 'preScript', this.value)" style="width:100%; height:42px; font-family:var(--font-mono); font-size:11px; border:1px solid var(--border); border-radius:3px; padding:4px; resize:vertical;">${escapeHtml(step.preScript || '')}</textarea>
+                        </div>
+                        <div>
+                            <label style="font-size:10px; color:var(--text-secondary);">⏹️ 请求后脚本 Post-Script (可用: res, body, vars, log, stop, assert, pushChartData):</label>
+                            <textarea placeholder="如: const min = body.data.liveCarBetBeanList.sort((a,b)=>a.normalOdd-b.normalOdd)[0]; vars.bestCarId = min.carId;" onchange="updateStepProp(${idx}, 'postScript', this.value)" style="width:100%; height:42px; font-family:var(--font-mono); font-size:11px; border:1px solid var(--border); border-radius:3px; padding:4px; resize:vertical;">${escapeHtml(step.postScript || '')}</textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step Chart Monitors -->
+                <div style="margin-top:6px; background:#f6ffed; padding:8px; border-radius:4px; border:1px dashed #b7eb8f;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                        <span style="font-size:11px; font-weight:700; color:#389e0d;">📊 动态图表监控 (步骤运行后自动提取响应数据并绘制图表):</span>
+                        <button class="btn-sm" style="padding:2px 6px; font-size:10px;" onclick="addStepChartConfig(${idx})">+ 添加监控图表</button>
+                    </div>
+                    <div id="step-charts-${idx}">
+                        ${(step.charts || []).map((chartCfg, cIdx) => `
+                            <div class="extract-row" style="grid-template-columns: 1.2fr 1fr 1.8fr 30px;">
+                                <input placeholder="图表标题 (如 余额走势)" value="${escapeHtml(chartCfg.title||'')}" onchange="updateStepChartConfig(${idx}, ${cIdx}, 'title', this.value)">
+                                <select onchange="updateStepChartConfig(${idx}, ${cIdx}, 'type', this.value)" style="border:1px solid var(--border);border-radius:3px;font-size:11px;">
+                                    <option value="line" ${chartCfg.type==='line'?'selected':''}>📈 折线图</option>
+                                    <option value="bar" ${chartCfg.type==='bar'?'selected':''}>📊 柱状图</option>
+                                    <option value="pie" ${chartCfg.type==='pie'?'selected':''}>🥧 饼图分布</option>
+                                </select>
+                                <input placeholder="数据Key路径 (如 info.balance 或 @diff:info.balance)" value="${escapeHtml(chartCfg.dataKey||'')}" onchange="updateStepChartConfig(${idx}, ${cIdx}, 'dataKey', this.value)">
+                                <button class="kv-remove" style="width:20px;height:20px;font-size:12px;" onclick="removeStepChartConfig(${idx}, ${cIdx})">×</button>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <div style="margin-top:6px;background:#fafbfc;padding:8px;border-radius:4px;border:1px dashed var(--border);">
+                    <div style="font-size:11px;font-weight:700;color:var(--text-secondary);margin-bottom:6px;">结果断言（任一失败即视为步骤失败）</div>
+                    <div class="step-detail-grid">
+                        <input placeholder="HTTP 状态，如 200 或 200-299" value="${escapeHtml((step.assertion && step.assertion.status) || '200-399')}" onchange="updateStepAssertion(${idx}, 'status', this.value)" style="border:1px solid var(--border);border-radius:3px;padding:4px 6px;font-size:11px;">
+                        <input type="number" min="0" placeholder="最大耗时 ms（0 不限制）" value="${(step.assertion && step.assertion.maxDurationMs) || 0}" onchange="updateStepAssertion(${idx}, 'maxDurationMs', readNonNegativeValue(this.value, 0))" style="border:1px solid var(--border);border-radius:3px;padding:4px 6px;font-size:11px;">
+                        <input placeholder="JSON 路径，如 data.code（可空）" value="${escapeHtml((step.assertion && step.assertion.path) || '')}" onchange="updateStepAssertion(${idx}, 'path', this.value)" style="border:1px solid var(--border);border-radius:3px;padding:4px 6px;font-size:11px;">
+                        <input placeholder="期望值，如 0 / true / success" value="${escapeHtml((step.assertion && step.assertion.expected) || '')}" onchange="updateStepAssertion(${idx}, 'expected', this.value)" style="border:1px solid var(--border);border-radius:3px;padding:4px 6px;font-size:11px;">
+                    </div>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    function addScriptStep() {
+        currentScriptSteps.push({
+            id: 'step_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+            name: '步骤 ' + (currentScriptSteps.length + 1),
+            requestId: '',
+            delayMs: 0,
+            extracts: [],
+            assertion: { status: '200-399', path: '', expected: '', maxDurationMs: 0 }
+        });
+        renderScriptSteps();
+    }
+
+    function removeStep(idx) {
+        currentScriptSteps.splice(idx, 1);
+        renderScriptSteps();
+    }
+
+    function moveStep(idx, dir) {
+        const target = idx + dir;
+        if (target < 0 || target >= currentScriptSteps.length) return;
+        const temp = currentScriptSteps[idx];
+        currentScriptSteps[idx] = currentScriptSteps[target];
+        currentScriptSteps[target] = temp;
+        renderScriptSteps();
+    }
+
+    function updateStepProp(stepIdx, key, val) {
+        if (currentScriptSteps[stepIdx]) {
+            currentScriptSteps[stepIdx][key] = val;
+        }
+    }
+
+    function addStepChartConfig(stepIdx) {
+        if (!currentScriptSteps[stepIdx].charts) currentScriptSteps[stepIdx].charts = [];
+        currentScriptSteps[stepIdx].charts.push({ id: 'chart_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8), title: '', type: 'line', dataKey: '' });
+        renderScriptSteps();
+    }
+
+    function removeStepChartConfig(stepIdx, cIdx) {
+        currentScriptSteps[stepIdx].charts.splice(cIdx, 1);
+        renderScriptSteps();
+    }
+
+    function updateStepChartConfig(stepIdx, cIdx, key, val) {
+        if (currentScriptSteps[stepIdx].charts && currentScriptSteps[stepIdx].charts[cIdx]) {
+            currentScriptSteps[stepIdx].charts[cIdx][key] = val;
+        }
+    }
+
+    function addStepExtractor(stepIdx) {
+        if (!currentScriptSteps[stepIdx].extracts) currentScriptSteps[stepIdx].extracts = [];
+        currentScriptSteps[stepIdx].extracts.push({ varName: '', path: '' });
+        renderScriptSteps();
+    }
+
+    function removeStepExtract(stepIdx, exIdx) {
+        currentScriptSteps[stepIdx].extracts.splice(exIdx, 1);
+        renderScriptSteps();
+    }
+
+    function updateStepExtract(stepIdx, exIdx, key, val) {
+        if (currentScriptSteps[stepIdx].extracts && currentScriptSteps[stepIdx].extracts[exIdx]) {
+            currentScriptSteps[stepIdx].extracts[exIdx][key] = val;
+        }
+    }
+
+    function updateStepAssertion(stepIdx, key, val) {
+        const step = currentScriptSteps[stepIdx];
+        if (!step) return;
+        if (!step.assertion) step.assertion = {};
+        step.assertion[key] = val;
+    }
+
+    // ── Log Console Helper ──
+    function appendScriptLog(msg, type = 'info') {
+        const consoleEl = $('scriptLogConsole');
+        const line = document.createElement('div');
+        const now = new Date().toLocaleTimeString();
+        line.className = `log-line ${type}`;
+        line.textContent = `[${now}] ${msg}`;
+        consoleEl.appendChild(line);
+        consoleEl.scrollTop = consoleEl.scrollHeight;
+    }
+
+    function clearScriptLogs() {
+        $('scriptLogConsole').innerHTML = '';
+    }
+
+    // ── Script Execution Engine ──
+    function readNonNegativeValue(value, fallback) {
+        const parsed = Number.parseInt(value, 10);
+        return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+    }
+
+    function readNonNegativeInt(id, fallback) {
+        return readNonNegativeValue($(id).value, fallback);
+    }
+
+    function cancellableSleep(ms, runToken) {
+        return new Promise(resolve => {
+            if (!isScriptRunning || runToken !== scriptRunToken) return resolve(false);
+            if (ms <= 0) return resolve(true);
+            const onAbort = () => {
+                clearTimeout(timer);
+                resolve(false);
+            };
+            const timer = setTimeout(() => {
+                scriptAbortController?.signal.removeEventListener('abort', onAbort);
+                resolve(isScriptRunning && runToken === scriptRunToken);
+            }, ms);
+            scriptAbortController?.signal.addEventListener('abort', onAbort, { once: true });
+        });
+    }
+
+    function getValueByPath(obj, path) {
+        if (!obj || !path) return undefined;
+        const keys = path.replace(/\[(\d+)\]/g, '.$1').split('.');
+        let current = obj;
+        for (const k of keys) {
+            if (current == null) return undefined;
+            current = current[k];
+        }
+        return current;
+    }
+
+    function replaceVars(str, vars) {
+        if (!str || typeof str !== 'string') return str;
+        // 1. 先处理双引号包裹的变量，如 "${carIds}" 或 "${showTrackId}" 或 "${betEnergies}"
+        let result = str.replace(/"\$\{([^}]+)\}"/g, (match, varName) => {
+            const key = varName.trim();
+            if (vars[key] !== undefined) {
+                const val = vars[key];
+                if (typeof val === 'string') {
+                    return JSON.stringify(val); // 保持合法转义字符串，如 "[{\"carId\":4,\"energy\":691}]"
+                } else {
+                    return JSON.stringify(val); // 数组或对象转为合法 JSON [5,6,7]，数字转为数字 5
+                }
+            }
+            return match;
+        });
+
+        // 2. 再处理普通未加双引号的变量 ${gameNo}
+        return result.replace(/\$\{([^}]+)\}/g, (match, varName) => {
+            const key = varName.trim();
+            if (vars[key] !== undefined) {
+                const val = vars[key];
+                return typeof val === 'object' ? JSON.stringify(val) : String(val);
+            }
+            return match;
+        });
+    }
+
+    function statusMatches(code, rule) {
+        const normalized = String(rule || '200-399').trim();
+        const range = normalized.match(/^(\d{3})\s*-\s*(\d{3})$/);
+        if (range) return code >= Number(range[1]) && code <= Number(range[2]);
+        return /^\d{3}$/.test(normalized) && code === Number(normalized);
+    }
+
+    function assertionFailure(step, responseJson, duration) {
+        const assertion = step.assertion || {};
+        const code = Number(responseJson.code || 0);
+        if (!statusMatches(code, assertion.status)) return `HTTP 状态断言失败: 实际 ${code}, 期望 ${assertion.status || '200-399'}`;
+        const maxDuration = readNonNegativeValue(assertion.maxDurationMs, 0);
+        if (maxDuration > 0 && duration > maxDuration) return `耗时断言失败: 实际 ${duration}ms, 最大 ${maxDuration}ms`;
+        if (String(assertion.path || '').trim()) {
+            let parsedBody;
+            try {
+                const raw = responseJson.body || (typeof responseJson === 'string' ? responseJson : JSON.stringify(responseJson));
+                parsedBody = typeof raw === 'string' ? JSON.parse(raw) : raw;
+            }
+            catch (_) { parsedBody = responseJson; }
+            const actual = getValueByPath(parsedBody, assertion.path.trim());
+            if (actual === undefined) return `JSON 断言失败: 路径 ${assertion.path} 不存在`;
+            if (String(actual) !== String(assertion.expected ?? '')) return `JSON 断言失败: ${assertion.path} 实际为 ${JSON.stringify(actual)} (期望: ${assertion.expected})`;
+        }
+        return '';
+    }
+
+    async function startScriptExecution() {
+        if (currentScriptSteps.length === 0) { toast('请先配置步骤'); return; }
+        const savedReqs = allSaved();
+
+        // Validate steps
+        for (let i = 0; i < currentScriptSteps.length; i++) {
+            const step = currentScriptSteps[i];
+            if (!step.requestId || !savedReqs.find(r => r.id === step.requestId)) {
+                toast(`步骤 ${i + 1} (${step.name}) 未绑定有效的已保存接口`);
+                return;
+            }
+        }
+
+        const loopCount = readNonNegativeInt('scriptLoopCount', 1); // 0 for infinite
+        const loopInterval = readNonNegativeInt('scriptLoopInterval', 1000);
+        const startDelay = readNonNegativeInt('scriptStartDelay', 0);
+        const errorPolicy = $('scriptErrorPolicy').value;
+
+        isScriptRunning = true;
+        $('btnRunScript').disabled = true;
+        $('btnStopScript').disabled = false;
+        $('scriptRunStatus').textContent = '状态: 运行中...';
+        $('scriptProgressBar').style.width = '0%';
+
+        scriptAbortController = new AbortController();
+        const runToken = ++scriptRunToken;
+        scriptWasStopped = false;
+        const runtimeVars = {};
+
+        clearScriptLogs();
+        appendScriptLog(`🚀 启动自动化脚本 [${$('scriptName').value || '未命名'}]`, 'info');
+        appendScriptLog(`配置: 循环 ${loopCount === 0 ? '无限' : loopCount + ' 次'}, 循环间隔 ${loopInterval}ms, 延迟启动 ${startDelay}ms`, 'time');
+
+        resetChartData();
+        let currentLoop = 0;
+        let totalSuccess = 0;
+        let totalFail = 0;
+
+        try {
+            if (startDelay > 0) {
+                appendScriptLog(`等待延迟启动 ${startDelay}ms...`, 'time');
+                if (!await cancellableSleep(startDelay, runToken)) return;
+            }
+
+            while (isScriptRunning && (loopCount === 0 || currentLoop < loopCount)) {
+                currentLoop++;
+                appendScriptLog(`\n--- 🔄 开始第 ${currentLoop} 轮循环 ---`, 'info');
+
+                for (let i = 0; i < currentScriptSteps.length; i++) {
+                    if (!isScriptRunning) break;
+
+                    const step = currentScriptSteps[i];
+                    const reqData = savedReqs.find(r => r.id === step.requestId);
+                    let duration = 0;
+                    let isSuccess = true;
+
+                    if (step.delayMs > 0) {
+                        appendScriptLog(`[步骤 ${i+1}: ${step.name}] 等待步骤前延时 ${step.delayMs}ms...`, 'time');
+                        if (!await cancellableSleep(step.delayMs, runToken)) break;
+                    }
+
+                    if (!isScriptRunning || runToken !== scriptRunToken) break;
+
+                    // 0. 请求前 JS 脚本 (Pre-request Script)
+                    if (step.preScript && step.preScript.trim()) {
+                        try {
+                            const fn = new Function('vars', 'log', step.preScript);
+                            fn(runtimeVars, (msg) => appendScriptLog(`  [PreScript Log] ${msg}`, 'info'));
+                            appendScriptLog(`  ⚡ 已执行步骤前置脚本`, 'info');
+                        } catch (e) {
+                            isSuccess = false;
+                            totalFail++;
+                            appendScriptLog(`  ❌ 步骤前置脚本执行出错，已跳过请求: ${e.message}`, 'error');
+                            if (errorPolicy === 'stop') {
+                                isScriptRunning = false;
+                                break;
+                            }
+                            continue;
+                        }
+                    }
+
+                    // Apply variable replacements
+                    const finalUrl = replaceVars(reqData.url, runtimeVars);
+                    const finalQuery = replaceVars(reqData.query, runtimeVars);
+                    const finalHeaders = replaceVars(reqData.headers, runtimeVars);
+                    const finalBody = replaceVars(reqData.body, runtimeVars);
+
+                    appendScriptLog(`[步骤 ${i+1}: ${step.name}] 发起请求: ${reqData.method} ${finalUrl}`, 'info');
+                    if (reqData.body && reqData.body.trim()) appendScriptLog('  📝 Request Body 已完成变量替换（内容已隐藏）', 'time');
+
+                    activeScriptRequestId = `api_debug_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                    const form = new URLSearchParams({
+                        httpMethod: reqData.method,
+                        url: finalUrl,
+                        query: finalQuery || '',
+                        headers: finalHeaders || '',
+                        body: finalBody || '',
+                        contentType: reqData.contentType || 'application/json; charset=utf-8',
+                        timeoutMillis: reqData.timeout || '60000',
+                        requestId: activeScriptRequestId
+                    });
+
+                    const startTime = performance.now();
+                    let responseJson = null;
+                    isSuccess = false;
+
+                    try {
+                        const response = await fetch('/apiDebugExecute', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+                            body: form,
+                            signal: scriptAbortController.signal
+                        });
+                        const envelope = await response.json();
+                        responseJson = envelope.data || envelope;
+                        duration = Math.round(performance.now() - startTime);
+
+                        if (responseJson.error) {
+                            appendScriptLog(`[步骤 ${i+1}: ${step.name}] ❌ 失败 (${duration}ms): ${responseJson.error}`, 'error');
+                        } else {
+                            const code = responseJson.code || 0;
+                            const assertionError = assertionFailure(step, responseJson, duration);
+                            if (!assertionError) {
+                                isSuccess = true;
+                                appendScriptLog(`[步骤 ${i+1}: ${step.name}] ✅ 成功 (${code}, ${duration}ms)`, 'success');
+                            } else {
+                                appendScriptLog(`[步骤 ${i+1}: ${step.name}] ❌ ${assertionError}`, 'error');
+                            }
+                        }
+                    } catch (err) {
+                        if (err.name === 'AbortError') {
+                            appendScriptLog(`[步骤 ${i+1}: ${step.name}] ⏹️ 请求已手动中断`, 'warn');
+                            break;
+                        }
+                        appendScriptLog(`[步骤 ${i+1}: ${step.name}] ❌ 网络/连接故障: ${err.message}`, 'error');
+                    } finally {
+                        activeScriptRequestId = null;
+                    }
+
+                    // 1. 请求后 JS 脚本处理 (Post-response Script) - 不受 http code 阻断
+                    if (responseJson && step.postScript && step.postScript.trim()) {
+                        try {
+                            let parsedBody = null;
+                            try {
+                                const raw = responseJson.body || (typeof responseJson === 'string' ? responseJson : JSON.stringify(responseJson));
+                                parsedBody = typeof raw === 'string' ? JSON.parse(raw) : raw;
+                            } catch (_) { parsedBody = responseJson; }
+
+                            const stopFn = (reason = '脚本主动作废/终止') => {
+                                throw new Error(`[Script Abort] ${reason}`);
+                            };
+                            const fn = new Function('res', 'body', 'vars', 'log', 'stop', 'assert', 'pushChartData', step.postScript);
+                            const assertFn = (condition, msg) => {
+                                if (!condition) throw new Error(msg || '断言失败');
+                            };
+
+                            const scriptChartPush = (value, initialValue, seriesName = `${step.name || '步骤'} 自定义`) =>
+                                pushChartData(value, initialValue, `script:${step.id || i}:${seriesName}`, seriesName, 'line');
+                            fn(responseJson, parsedBody, runtimeVars,
+                               (msg) => appendScriptLog(`  [PostScript Log] ${msg}`, 'info'),
+                               stopFn,
+                               assertFn,
+                               scriptChartPush
+                            );
+                            appendScriptLog(`  ⚡ 已执行步骤后置脚本`, 'info');
+                        } catch (e) {
+                            isSuccess = false;
+                            if (String(e.message || '').startsWith('[Script Abort]')) isScriptRunning = false;
+                            appendScriptLog(`  ❌ 步骤后置脚本断言/执行终止: ${e.message}`, 'error');
+                        }
+                    }
+
+                    // 2. Variable extractions (JSON Path / JS 表达式)
+                    if (isScriptRunning && step.extracts && step.extracts.length > 0 && responseJson) {
+                        try {
+                            let parsedBody = null;
+                            try {
+                                const raw = responseJson.body || (typeof responseJson === 'string' ? responseJson : JSON.stringify(responseJson));
+                                parsedBody = typeof raw === 'string' ? JSON.parse(raw) : raw;
+                            } catch (_) { parsedBody = responseJson; }
+
+                            step.extracts.forEach(ex => {
+                                if (ex.varName && ex.path) {
+                                    const trimmedPath = ex.path.trim();
+                                    let val;
+                                    if (trimmedPath.startsWith('@js:')) {
+                                        const expr = trimmedPath.slice(4);
+                                        val = new Function('data', 'vars', `return (${expr})`)(parsedBody, runtimeVars);
+                                    } else {
+                                        val = getValueByPath(parsedBody, trimmedPath);
+                                    }
+                                    if (val !== undefined) {
+                                        runtimeVars[ex.varName.trim()] = val;
+                                        appendScriptLog(`  🔑 已提取变量 \${${ex.varName.trim()}}（值已隐藏）`, 'success');
+                                    } else {
+                                        isSuccess = false;
+                                        appendScriptLog(`  ⚠️ 提取变量 \${${ex.varName.trim()}} 失败 (Path: ${ex.path} 未在响应中找到)`, 'warn');
+                                    }
+                                }
+                            });
+                        } catch (e) {
+                            isSuccess = false;
+                            appendScriptLog(`  ⚠️ 变量提取解析失败: ${e.message}`, 'warn');
+                        }
+                    }
+
+                    // 3. Dynamic Step Charts Processing (基于 step.charts 自动绘制)
+                    if (isScriptRunning && step.charts && step.charts.length > 0 && responseJson) {
+                        try {
+                            let parsedBody = null;
+                            try {
+                                const raw = responseJson.body || (typeof responseJson === 'string' ? responseJson : JSON.stringify(responseJson));
+                                parsedBody = typeof raw === 'string' ? JSON.parse(raw) : raw;
+                            } catch (_) { parsedBody = responseJson; }
+
+                            step.charts.forEach(chartCfg => {
+                                if (chartCfg.dataKey && chartCfg.dataKey.trim()) {
+                                    const rawKey = chartCfg.dataKey.trim();
+                                    let numVal = undefined;
+                                    let isDiffMode = false;
+
+                                    if (rawKey.startsWith('@diff:')) {
+                                        isDiffMode = true;
+                                        const path = rawKey.slice(6).trim();
+                                        const curVal = Number(getValueByPath(parsedBody, path));
+                                        if (!isNaN(curVal)) {
+                                            const initKey = '_init_diff_' + path;
+                                            if (runtimeVars[initKey] === undefined) {
+                                                runtimeVars[initKey] = curVal;
+                                            }
+                                            numVal = curVal - runtimeVars[initKey];
+                                        }
+                                    } else {
+                                        const val = getValueByPath(parsedBody, rawKey);
+                                        if (val !== undefined && val !== null && val !== '') numVal = Number(val);
+                                    }
+
+                                    if (numVal !== undefined && !isNaN(numVal)) {
+                                        const initialVal = isDiffMode ? 0 : runtimeVars.initialBalance;
+                                        const seriesKey = `chart:${step.id || i}:${chartCfg.id || chartCfg.dataKey}`;
+                                        pushChartData(numVal, initialVal, seriesKey, chartCfg.title || rawKey, chartCfg.type || 'line');
+                                        appendScriptLog(`  📊 动态图表 [${chartCfg.title || '监控'}] 采样更新: ${numVal}`, 'success');
+                                    }
+                                }
+                            });
+                        } catch (e) {
+                            isSuccess = false;
+                            appendScriptLog(`  ⚠️ 动态图表采样失败: ${e.message}`, 'warn');
+                        }
+                    }
+
+                    if (isSuccess) totalSuccess++;
+                    else totalFail++;
+
+                    if (!isSuccess && errorPolicy === 'stop') {
+                        appendScriptLog(`🛑 根据错误处理策略，立即停止后续步骤与循环`, 'error');
+                        isScriptRunning = false;
+                        break;
+                    }
+                }
+
+                // Update Progress
+                if (loopCount > 0) {
+                    const percent = Math.min(100, Math.round((currentLoop / loopCount) * 100));
+                    $('scriptProgressBar').style.width = percent + '%';
+                }
+
+                if (isScriptRunning && (loopCount === 0 || currentLoop < loopCount)) {
+                    appendScriptLog(`等待循环间隔 ${loopInterval}ms...`, 'time');
+                    if (!await cancellableSleep(loopInterval, runToken)) break;
+                }
+            }
+        } finally {
+            isScriptRunning = false;
+            $('btnRunScript').disabled = false;
+            $('btnStopScript').disabled = true;
+            const state = scriptWasStopped ? '已手动停止' : (totalFail > 0 ? '执行失败' : '已完成');
+            $('scriptRunStatus').textContent = `状态: ${state} (成功: ${totalSuccess}, 失败: ${totalFail})`;
+            appendScriptLog(`\n${scriptWasStopped ? '⏹️' : '🏁'} 脚本${state}，累计成功 ${totalSuccess} 次，失败 ${totalFail} 次。`, scriptWasStopped ? 'warn' : (totalFail > 0 ? 'error' : 'success'));
+            scriptAbortController = null;
+            activeScriptRequestId = null;
+        }
+    }
+
+    function stopScriptExecution() {
+        if (!isScriptRunning) return;
+        isScriptRunning = false;
+        scriptWasStopped = true;
+        scriptRunToken++;
+        const requestId = activeScriptRequestId;
+        if (scriptAbortController) {
+            scriptAbortController.abort();
+        }
+        if (requestId) {
+            fetch('/apiDebugCancel', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+                body: new URLSearchParams({ requestId })
+            }).catch(() => {});
+        }
+        $('scriptRunStatus').textContent = '状态: 已手动停止';
+        appendScriptLog('⏹️ 用户手动终止了脚本运行', 'warn');
+    }
+
+    // ── Sidebar toggle (mobile) ──
+    function toggleSidebar() {
+        ELS.sidebar.classList.toggle('open');
+        ELS.sidebarBackdrop.classList.toggle('open');
+    }
+
+    // ── Import / Export Logic ──
+    function downloadJsonFile(filename, dataObj) {
+        const jsonStr = JSON.stringify(dataObj, null, 2);
+        const dataUrl = 'data:application/json;charset=utf-8,' + encodeURIComponent(jsonStr);
+        const link = document.createElement('a');
+        link.href = dataUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    function exportData() {
+        if (currentViewMode === 'single') {
+            const requests = allSaved();
+            if (!requests.length) { toast('暂无保存接口可导出'); return; }
+            downloadJsonFile(`api_debug_requests_${Date.now()}.json`, {
+                type: 'api_debug_export',
+                version: 1,
+                exportType: 'requests',
+                requests: requests
+            });
+            toast('已导出所有接口数据');
+        } else {
+            const scripts = allSavedScripts();
+            if (!scripts.length) { toast('暂无保存脚本可导出'); return; }
+            const allReqs = allSaved();
+            downloadJsonFile(`api_debug_scripts_${Date.now()}.json`, {
+                type: 'api_debug_export',
+                version: 1,
+                exportType: 'scripts',
+                scripts: scripts,
+                requests: allReqs
+            });
+            toast('已导出所有脚本及关联接口数据');
+        }
+    }
+
+    function exportSingleItem(id, itemType) {
+        const allReqs = allSaved();
+        if (itemType === 'request') {
+            const req = allReqs.find(r => r.id === id);
+            if (!req) return;
+            downloadJsonFile(`req_${(req.saveName || 'export').replace(/[\\/:*?"<>|]/g, '_')}.json`, {
+                type: 'api_debug_export',
+                version: 1,
+                exportType: 'single_request',
+                requests: [req]
+            });
+            toast(`已导出接口 [${req.saveName || req.url}]`);
+        } else {
+            const script = allSavedScripts().find(s => s.id === id);
+            if (!script) return;
+            // 自动收集脚本中所有步骤依赖的接口
+            const reqIds = new Set((script.steps || []).map(st => st.requestId).filter(Boolean));
+            const relatedReqs = allReqs.filter(r => reqIds.has(r.id));
+
+            downloadJsonFile(`script_${(script.name || 'export').replace(/[\\/:*?"<>|]/g, '_')}.json`, {
+                type: 'api_debug_export',
+                version: 1,
+                exportType: 'single_script',
+                scripts: [script],
+                requests: relatedReqs
+            });
+            toast(`已导出脚本 [${script.name}] 及关联的 ${relatedReqs.length} 个接口`);
+        }
+    }
+
+    function triggerImport() {
+        $('importFileInput').value = '';
+        $('importFileInput').click();
+    }
+
+    const MAX_IMPORT_BYTES = 2 * 1024 * 1024;
+
+    function uniqueImportedId(prefix, usedIds) {
+        let id;
+        do {
+            id = `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+        } while (usedIds.has(id));
+        usedIds.add(id);
+        return id;
+    }
+
+    function isValidImportedRequest(req) {
+        return req && typeof req === 'object' && !Array.isArray(req)
+            && typeof req.url === 'string' && req.url.trim().length > 0
+            && ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(String(req.method || '').toUpperCase());
+    }
+
+    function isValidImportedScript(script) {
+        return script && typeof script === 'object' && !Array.isArray(script)
+            && typeof script.name === 'string' && script.name.trim().length > 0
+            && Array.isArray(script.steps)
+            && script.steps.every(step => step && typeof step === 'object' && typeof step.requestId === 'string');
+    }
+
+    function handleImportFile(event) {
+        const file = event.target.files && event.target.files[0];
+        if (!file) return;
+        if (file.size > MAX_IMPORT_BYTES) {
+            toast('导入失败: 文件不能超过 2MB');
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const imported = JSON.parse(e.target.result);
+                let importedReqCount = 0;
+                let importedScriptCount = 0;
+
+                // 兼容性极强的数据提取支持
+                let reqList = [];
+                let scriptList = [];
+
+                if (Array.isArray(imported)) {
+                    // 如果直接导入的是数组
+                    imported.forEach(item => {
+                        if (item.steps || item.loopCount !== undefined) scriptList.push(item);
+                        else reqList.push(item);
+                    });
+                } else if (typeof imported === 'object' && imported !== null) {
+                    if (imported.type === 'api_debug_export' && imported.version !== 1) {
+                        throw new Error(`不支持的导出版本: ${imported.version}`);
+                    }
+                    if (Array.isArray(imported.requests)) reqList = imported.requests;
+                    if (Array.isArray(imported.scripts)) scriptList = imported.scripts;
+                    // 支持单个对象直接导入
+                    if (!imported.requests && !imported.scripts) {
+                        if (imported.steps || imported.loopCount !== undefined) scriptList.push(imported);
+                        else if (imported.url || imported.method) reqList.push(imported);
+                    }
+                }
+
+                const invalidReqCount = reqList.filter(req => !isValidImportedRequest(req)).length;
+                const invalidScriptCount = scriptList.filter(script => !isValidImportedScript(script)).length;
+                if (invalidReqCount || invalidScriptCount) {
+                    throw new Error(`数据结构非法（接口 ${invalidReqCount}，脚本 ${invalidScriptCount}）`);
+                }
+
+                const currentReqs = allSaved();
+                const currentScripts = allSavedScripts();
+                const usedReqIds = new Set(currentReqs.map(req => req.id).filter(Boolean));
+                const usedScriptIds = new Set(currentScripts.map(script => script.id).filter(Boolean));
+                const requestIdMap = new Map();
+
+                const importedReqs = reqList.map(rawReq => {
+                    const req = JSON.parse(JSON.stringify(rawReq));
+                    const oldId = typeof req.id === 'string' && req.id ? req.id : null;
+                    const newId = !oldId || usedReqIds.has(oldId)
+                        ? uniqueImportedId('req', usedReqIds)
+                        : oldId;
+                    usedReqIds.add(newId);
+                    if (oldId) requestIdMap.set(oldId, newId);
+                    req.id = newId;
+                    req.method = req.method.toUpperCase();
+                    return req;
+                });
+
+                const importedScripts = scriptList.map(rawScript => {
+                    const script = JSON.parse(JSON.stringify(rawScript));
+                    script.id = !script.id || usedScriptIds.has(script.id)
+                        ? uniqueImportedId('script', usedScriptIds)
+                        : script.id;
+                    usedScriptIds.add(script.id);
+                    script.steps.forEach(step => {
+                        if (requestIdMap.has(step.requestId)) step.requestId = requestIdMap.get(step.requestId);
+                    });
+                    return script;
+                });
+
+                importedReqCount = importedReqs.length;
+                importedScriptCount = importedScripts.length;
+                if (importedReqCount) persist([...importedReqs.reverse(), ...currentReqs]);
+                if (importedScriptCount) persistScripts([...importedScripts.reverse(), ...currentScripts]);
+
+                if (importedReqCount === 0 && importedScriptCount === 0) {
+                    toast('未在文件中识别到有效的接口或脚本数据');
+                } else {
+                    toast(`成功导入: ${importedScriptCount} 个脚本, ${importedReqCount} 个接口`);
+                    // 无论当前处于哪个模式，同时刷新渲染单接口侧边栏与脚本侧边栏
+                    if (currentViewMode === 'single') {
+                        renderSidebar();
+                    } else {
+                        renderScriptSidebar();
+                    }
+                }
+
+            } catch (err) {
+                console.error('Import error:', err);
+                toast(`导入失败: ${err.message || 'JSON 格式非法'}`);
+            }
+        };
+        reader.readAsText(file, 'UTF-8');
+    }
+
+    // ── Toast ──
+    let toastTimer;
+    function toast(msg) {
+        const el = ELS.toast;
+        el.textContent = msg;
+        el.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => el.classList.remove('show'), 2000);
+    }
+
+    // ── Init Preset Demo Data ──
+    function ensureRaceGameDemoPresets() {
+        if (!confirm('示例包含业务接口和示例参数，仅应用于受信任的测试环境。确定导入？')) return;
+        const REQ_KEY = STORAGE_KEY;
+        const SCRIPT_KEY = SCRIPT_STORAGE_KEY;
+        let reqs = [];
+        try { reqs = JSON.parse(localStorage.getItem(REQ_KEY) || '[]'); } catch (_) {}
+
+        let req1 = reqs.find(r => r.saveName === '1-获取赛车信息');
+        if (!req1) {
+            req1 = {
+                id: 'req_preset_race_info',
+                saveName: '1-获取赛车信息',
+                method: 'POST',
+                url: '/newRace/getRaceGameInfo',
+                contentType: 'application/json; charset=utf-8',
+                body: JSON.stringify({ roomId: "59163773" }, null, 2),
+                timeout: '60000',
+                headers: 'Content-Type: application/json',
+                createdAt: Date.now()
+            };
+            reqs.unshift(req1);
+        }
+
+        let req2 = reqs.find(r => r.saveName === '2-押注接口');
+        if (!req2) {
+            req2 = {
+                id: 'req_preset_race_bet',
+                saveName: '2-押注接口',
+                method: 'POST',
+                url: '/newRace/doLiveBet',
+                contentType: 'application/json; charset=utf-8',
+                body: JSON.stringify({
+                    roomId: "59163773",
+                    gameNo: "${gameNo}",
+                    showTrackIndex: 1,
+                    showTrackId: "${showTrackId}",
+                    carIds: "${carIds}",
+                    energy: 691,
+                    betEnergies: "${betEnergies}",
+                    sourceType: 1,
+                    yd_device_id: ""
+                }, null, 2),
+                timeout: '60000',
+                headers: 'Content-Type: application/json',
+                createdAt: Date.now()
+            };
+            reqs.unshift(req2);
+        }
+        localStorage.setItem(REQ_KEY, JSON.stringify(reqs));
+
+        let scripts = [];
+        try { scripts = JSON.parse(localStorage.getItem(SCRIPT_KEY) || '[]'); } catch (_) {}
+        const scriptIdx = scripts.findIndex(s => s.name === '赛车智能最低赔率押注脚本');
+        const targetScript = {
+            id: 'script_preset_race_bet',
+            name: '赛车智能最低赔率押注脚本',
+            loopCount: 1,
+            loopInterval: 1000,
+            startDelay: 0,
+            errorPolicy: 'stop',
+            createdAt: Date.now(),
+            steps: [
+                {
+                    id: 'step_race_1',
+                    name: '步骤1: 获取赛车信息与算赔率',
+                    requestId: req1.id,
+                    delayMs: 0,
+                    extracts: [
+                        { varName: 'gameNo', path: 'info.gameNo' },
+                        { varName: 'showTrackId', path: 'info.trackIds[0]' },
+                        { varName: 'carIds', path: 'info.carIds' }
+                    ],
+                    charts: [
+                        { title: '账户余额', type: 'line', dataKey: 'info.balance' }
+                    ],
+                    preScript: '',
+                    postScript: "// 💡 [提示] 业务结果断言已配置在底部的 UI \"结果断言\" 框中 (JSON路径: result, 期望值: 1000)\n// 1. 从返回响应中读取当前账户余额 info.balance\nconst infoData = body.info || (body.data && body.data.info) || body.data || body;\nconst currentBalance = infoData.balance;\n\nif (currentBalance !== undefined) {\n    // 首次循环，记录初始余额\n    if (vars.initialBalance === undefined) {\n        vars.initialBalance = currentBalance;\n        log('💰 记录初始账户余额: ' + currentBalance);\n    }\n    // 计算与初始余额的差值 (减法)\n    const diff = currentBalance - vars.initialBalance;\n    const diffText = diff >= 0 ? ('+' + diff) : String(diff);\n    log('📊 当前余额: ' + currentBalance + ' (累计盈亏: ' + diffText + ')');\n    // 自动推送到实时折线图显示\n    if (typeof pushChartData === 'function') {\n        pushChartData(currentBalance, vars.initialBalance);\n    }\n}\n\n// 2. 获取赛车列表并计算最低赔率 carId\nconst list = infoData.liveCarBetBeanList || [];\nassert(list.length > 0, '未能在响应 info 中获取到 liveCarBetBeanList 数组');\nconst minCar = list.reduce((min, item) => item.normalOdd < min.normalOdd ? item : min, list[0]);\nvars.betEnergies = JSON.stringify([{ carId: minCar.carId, energy: 691 }]);\nlog('✅ 选择最低赔率赛车 carId: ' + minCar.carId + ', 赔率: ' + minCar.normalOdd);",
+                    assertion: { status: '200-399', path: 'result', expected: '1000', maxDurationMs: 0 }
+                },
+                {
+                    id: 'step_race_2',
+                    name: '步骤2: 自动提交押注',
+                    requestId: req2.id,
+                    delayMs: 1000,
+                    extracts: [],
+                    preScript: '',
+                    postScript: '',
+                    assertion: { status: '200-399', path: 'result', expected: '1000', maxDurationMs: 0 }
+                }
+            ]
+        };
+
+        if (scriptIdx < 0) {
+            scripts.unshift(targetScript);
+        }
+        localStorage.setItem(SCRIPT_STORAGE_KEY, JSON.stringify(scripts));
+        renderSidebar();
+        toast(scriptIdx >= 0 ? '示例已存在，未覆盖已有修改' : '示例已导入，请先检查并配置参数');
+    }
+
+    // ── Live Chart (Chart.js) Clean Manager ──
+    let liveChartInstance = null;
+    let currentChartType = 'line'; // 'line' | 'bar' | 'pie'
+
+    const chartSeries = new Map();
+    const chartColors = ['#3772ff', '#02c076', '#e5493a', '#f0b90b', '#8b5cf6', '#06b6d4'];
+
+    function changeChartType(type) {
+        if (!['line', 'bar', 'pie'].includes(type) || currentChartType === type) return;
+        currentChartType = type;
+        initLiveChart();
+    }
+
+    function chartSnapshot() {
+        const series = Array.from(chartSeries.values());
+        if (currentChartType === 'pie') {
+            return {
+                labels: series.map(item => item.title),
+                datasets: [{
+                    label: '最新采样值',
+                    data: series.map(item => item.values[item.values.length - 1] ?? 0),
+                    backgroundColor: series.map((_, index) => chartColors[index % chartColors.length])
+                }]
+            };
+        }
+        const labels = Array.from(new Set(series.flatMap(item => item.labels))).slice(-30);
+        return {
+            labels,
+            datasets: series.map((item, index) => ({
+                label: item.title,
+                data: labels.map(label => {
+                    const valueIndex = item.labels.lastIndexOf(label);
+                    return valueIndex >= 0 ? item.values[valueIndex] : null;
+                }),
+                borderColor: chartColors[index % chartColors.length],
+                backgroundColor: currentChartType === 'bar' ? chartColors[index % chartColors.length] : `${chartColors[index % chartColors.length]}22`,
+                borderWidth: 2,
+                tension: 0.3,
+                fill: false,
+                spanGaps: true
+            }))
+        };
+    }
+
+    function initLiveChart() {
+        if (typeof Chart === 'undefined') {
+            const badge = document.getElementById('chartDiffBadge');
+            if (badge) badge.textContent = '提示: 外部 Chart.js 被拦截，纯数值监控正常工作';
+            return;
+        }
+        const ctx = document.getElementById('scriptLiveChart');
+        if (!ctx) return;
+        if (liveChartInstance) liveChartInstance.destroy();
+
+        const isPie = currentChartType === 'pie';
+        const snapshot = chartSnapshot();
+
+        liveChartInstance = new Chart(ctx.getContext('2d'), {
+            type: currentChartType,
+            data: snapshot,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: true },
+                    tooltip: { mode: 'index', intersect: false }
+                },
+                scales: isPie ? {} : {
+                    x: { grid: { display: false }, ticks: { font: { size: 9 }, color: '#707a8a' } },
+                    y: { grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { font: { size: 9 }, color: '#707a8a' } }
+                }
+            }
+        });
+    }
+
+    function showChartPanel() {
+        const card = $('scriptChartPanelCard');
+        if (card && card.style.display === 'none') {
+            card.style.display = 'block';
+            if (!liveChartInstance) initLiveChart();
+        }
+    }
+
+    function hideChartPanel() {
+        const card = $('scriptChartPanelCard');
+        if (card) card.style.display = 'none';
+    }
+
+    function pushChartData(value, initialValue, seriesKey = 'manual', title = '监控值', preferredType = 'line') {
+        const numericValue = Number(value);
+        if (!Number.isFinite(numericValue)) return;
+        if (chartSeries.size === 0 && ['line', 'bar', 'pie'].includes(preferredType)) {
+            currentChartType = preferredType;
+            $('chartTypeSelect').value = preferredType;
+        }
+        showChartPanel(); // 有数据推送时自动显示图表面板
+        const nowTime = new Date().toLocaleTimeString();
+        const series = chartSeries.get(seriesKey) || { title, preferredType, labels: [], values: [] };
+        series.title = title || series.title;
+        series.labels.push(nowTime);
+        series.values.push(numericValue);
+        if (series.labels.length > 30) series.labels.shift();
+        if (series.values.length > 30) series.values.shift();
+        chartSeries.set(seriesKey, series);
+
+        if (liveChartInstance) {
+            liveChartInstance.data = chartSnapshot();
+            liveChartInstance.update('none');
+        }
+
+        if (initialValue !== undefined && initialValue !== null && Number.isFinite(Number(initialValue))) {
+            const diff = numericValue - Number(initialValue);
+            const diffSign = diff >= 0 ? '+' + diff : String(diff);
+            const diffColor = diff > 0 ? '#02c076' : (diff < 0 ? '#e5493a' : 'var(--text-secondary)');
+            const badge = document.getElementById('chartDiffBadge');
+            if (badge) {
+                badge.innerHTML = `${escapeHtml(series.title)} 初始: <span style="color:var(--text);">${escapeHtml(String(initialValue))}</span> | 差值: <span style="color:${diffColor}; font-weight:800;">${escapeHtml(String(diffSign))}</span>`;
+            }
+        }
+    }
+
+    function resetChartData() {
+        chartSeries.clear();
+        initLiveChart();
+        const badge = document.getElementById('chartDiffBadge');
+        if (badge) badge.textContent = '初始: -- | 盈亏: 0';
+    }
+
+    // ── Init ──
+    function init() {
+        loadForm({method:'POST', contentType:'application/json; charset=utf-8', body:'{}', timeout:'60000'});
+        setKvFromLines('kvParams', '', '=');
+        setKvFromLines('kvHeaders', '', ':');
+        renderSidebar();
+    }
+
+    init();
+</script>
+</body>
+</html>

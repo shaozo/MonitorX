@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/navigation_monitor"
+        android:icon="@mipmap/monitor_icon_tab_network"
+        android:title="网络数据" />
+
+    <item
+        android:id="@+id/navigation_im"
+        android:icon="@mipmap/monitor_icon_tab_network"
+        android:title="IM消息" />
+
+    <item
+        android:id="@+id/navigation_sharedPrefs"
+        android:icon="@mipmap/monitor_icon_tab_file"
+        android:title="SP文件" />
+
+    <item
+        android:id="@+id/navigation_api_debug"
+        android:icon="@mipmap/monitor_icon_tab_network"
+        android:title="接口调试" />
+</menu>
