@@ -10,6 +10,7 @@ import com.shaovi.monitorx.MonitorHelper
 import com.shaovi.monitorx.data.SpSubData
 import com.shaovi.monitorx.databinding.ActivitySpFileDetailBinding
 import com.shaovi.monitorx.ui.dialog.SpModifyDialog
+import com.shaovi.monitorx.utils.setupEdgeToEdge
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -43,6 +44,7 @@ class SPFileDetailActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivitySpFileDetailBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        setupEdgeToEdge(binding.root, topView = binding.appBarLayout, bottomView = binding.recyclerVew)
         fileName = intent.getStringExtra(FILE_NAME)
         initView()
         initData()

@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.shaovi.monitorx"
+    namespace = "com.shaovi.monitorx.okhttp"
 
     compileSdk 36
 

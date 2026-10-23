@@ -49,7 +49,15 @@ class BusinessIssuesFragment : Fragment() {
                 .any { it.contains(query, ignoreCase = true) }
         }
         val status = AnomalyManager.getStatus()
-        binding.tvSummary.text = "业务问题 ${all.size} · 严重 ${status.criticalRecords} · 警告 ${status.warningRecords} · 规则 ${status.activeRules}"
+        binding.tvMainMetric.text = "已检测到 ${all.size} 项业务与时序异常"
+        binding.tvBadgeCritical.text = "严重 ${status.criticalRecords}"
+        binding.tvBadgeWarning.text = "警告 ${status.warningRecords}"
+        binding.tvBadgeRules.text = "启用规则 ${status.activeRules}"
+
+        val isEmpty = visible.isEmpty()
+        binding.llEmptyState.visibility = if (isEmpty) View.VISIBLE else View.GONE
+        binding.rvIssues.visibility = if (isEmpty) View.GONE else View.VISIBLE
+
         adapter.submit(visible)
         binding.swipeRefresh.isRefreshing = false
     }

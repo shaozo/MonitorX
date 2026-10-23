@@ -11,6 +11,7 @@ import com.google.gson.GsonBuilder
 import com.google.gson.JsonParser
 import com.shaovi.monitorx.databinding.ActivityImMonitorDetailBinding
 import com.shaovi.monitorx.im.ImMessageCollector
+import com.shaovi.monitorx.utils.setupEdgeToEdge
 
 class ImMessageDetailActivity : AppCompatActivity() {
 
@@ -21,6 +22,7 @@ class ImMessageDetailActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityImMonitorDetailBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        setupEdgeToEdge(binding.root, topView = binding.appBarLayout, bottomView = binding.scrollView)
         binding.ivBack.setOnClickListener { finish() }
         binding.tvCopy.setOnClickListener { copyToClipboard() }
         render()

@@ -52,7 +52,17 @@ class ImMessageFragment : Fragment() {
     }
 
     private fun setData() {
-        adapter?.setData(ImMessageCollector.query(limit = 100))
+        val records = ImMessageCollector.query(limit = 100)
+        val isEmpty = records.isEmpty()
+
+        binding.tvEmptyTitle.text = "暂无 IM 消息记录"
+        binding.tvEmptySubtitle.text = "在应用中调用 ImMessageCollector.record()\n即可在此实时回溯聊天与长连接信令消息"
+        binding.btnEmptyAction.visibility = View.GONE
+
+        binding.llEmptyState.visibility = if (isEmpty) View.VISIBLE else View.GONE
+        binding.rvMonitor.visibility = if (isEmpty) View.GONE else View.VISIBLE
+
+        adapter?.setData(records)
     }
 
     override fun onDestroyView() {

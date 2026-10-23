@@ -1,20 +1,71 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="8dp"
-    android:background="#FFF7F7"
-    android:orientation="vertical"
-    android:padding="12dp">
+    android:layout_marginStart="12dp"
+    android:layout_marginTop="6dp"
+    android:layout_marginEnd="12dp"
+    android:layout_marginBottom="6dp"
+    app:cardBackgroundColor="?attr/colorSurface"
+    app:cardCornerRadius="12dp"
+    app:cardElevation="1dp"
+    app:strokeColor="?attr/colorOutline"
+    app:strokeWidth="1dp">
 
-    <TextView android:id="@+id/tv_title" android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:textColor="#C62828" android:textSize="14sp" android:textStyle="bold" />
-    <TextView android:id="@+id/tv_meta" android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:layout_marginTop="4dp" android:textColor="#666666" android:textSize="11sp" />
-    <TextView android:id="@+id/tv_path" android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:layout_marginTop="6dp" android:textColor="#222222" android:textIsSelectable="true" android:textSize="12sp" />
-    <TextView android:id="@+id/tv_message" android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:layout_marginTop="6dp" android:textColor="#444444" android:textSize="12sp" />
-    <TextView android:id="@+id/tv_solution" android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:layout_marginTop="6dp" android:textColor="#1B5E20" android:textSize="12sp" />
-</LinearLayout>
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="12dp">
+
+        <TextView
+            android:id="@+id/tv_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-bold"
+            android:textColor="@color/monitor_status_error"
+            android:textSize="14sp"
+            tools:text="🚨 [CRITICAL] 登录前禁止调用结算接口" />
+
+        <TextView
+            android:id="@+id/tv_meta"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="11sp"
+            tools:text="触发时间: 14:30:25 | 规则ID: R_001" />
+
+        <TextView
+            android:id="@+id/tv_path"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:fontFamily="monospace"
+            android:textColor="?attr/colorOnSurface"
+            android:textIsSelectable="true"
+            android:textSize="12sp"
+            tools:text="接口: /api/checkout/order" />
+
+        <TextView
+            android:id="@+id/tv_message"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="?attr/colorOnSurface"
+            android:textSize="12sp"
+            tools:text="详细警告: 检测到未登录状态直接发起了订单结算请求" />
+
+        <TextView
+            android:id="@+id/tv_solution"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:fontFamily="sans-serif-medium"
+            android:textColor="@color/monitor_status_success"
+            android:textSize="12sp"
+            tools:text="建议修复: 请在进入结算页前确保用户已完成登录授权流程" />
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

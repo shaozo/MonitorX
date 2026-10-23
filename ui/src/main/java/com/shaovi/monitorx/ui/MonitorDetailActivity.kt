@@ -8,6 +8,7 @@ import com.shaovi.monitorx.adapter.MonitorPagerAdapter
 import com.shaovi.monitorx.data.MonitorData
 import com.shaovi.monitorx.databinding.ActivityMonitorDetailBinding
 import com.shaovi.monitorx.utils.formatBody
+import com.shaovi.monitorx.utils.setupEdgeToEdge
 
 class MonitorDetailActivity : AppCompatActivity() {
 
@@ -30,6 +31,7 @@ class MonitorDetailActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMonitorDetailBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        setupEdgeToEdge(binding.root, topView = binding.appBarLayout)
         monitorData = intent.getSerializableExtra(KEY_MONITOR_DATA) as? MonitorData?
         initView()
     }

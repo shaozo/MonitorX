@@ -3,19 +3,46 @@
     xmlns:tools="http://schemas.android.com/tools">
     <application>
         <activity
-            android:name=".ui.MonitorMainActivity"
+            android:name="com.shaovi.monitorx.ui.MonitorMainActivity"
             android:exported="true"
             android:icon="@mipmap/monitor_logo"
             android:label="@string/monitor_app_name"
             android:taskAffinity="com.shaovi.monitorx.${applicationId}"
-            android:theme="@style/Monitor_AppTheme" />
-        <activity android:name=".ui.MonitorDetailActivity" android:exported="false" android:theme="@style/Monitor_AppTheme" />
-        <activity android:name=".ui.MonitorConfigActivity" android:exported="false" android:theme="@style/Monitor_AppTheme" />
-        <activity android:name=".ui.im.ImMessageDetailActivity" android:exported="false" android:theme="@style/Monitor_AppTheme" />
-        <activity android:name=".ui.sp.SPFileDetailActivity" android:exported="false" android:theme="@style/Monitor_AppTheme" />
+            android:theme="@style/Monitor_AppTheme"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name="com.shaovi.monitorx.ui.MonitorDetailActivity"
+            android:exported="false"
+            android:theme="@style/Monitor_AppTheme"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name="com.shaovi.monitorx.ui.MonitorConfigActivity"
+            android:exported="false"
+            android:theme="@style/Monitor_AppTheme"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name="com.shaovi.monitorx.ui.im.ImMessageDetailActivity"
+            android:exported="false"
+            android:theme="@style/Monitor_AppTheme"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name="com.shaovi.monitorx.ui.sp.SPFileDetailActivity"
+            android:exported="false"
+            android:theme="@style/Monitor_AppTheme"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name="com.shaovi.monitorx.ui.api.ApiDebugActivity"
+            android:exported="false"
+            android:theme="@style/Monitor_AppTheme"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name="com.shaovi.monitorx.ui.im.ImMessageActivity"
+            android:exported="false"
+            android:theme="@style/Monitor_AppTheme"
+            android:windowSoftInputMode="adjustResize" />
 
         <activity-alias
-            android:name=".ui.MonitorMainActivityLauncher"
+            android:name="com.shaovi.monitorx.ui.MonitorMainActivityLauncher"
             android:exported="true"
             android:icon="@mipmap/monitor_logo"
             android:label="@string/monitor_app_name"

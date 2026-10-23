@@ -185,14 +185,20 @@ object InAppNotifier : AnomalyListener {
             else -> Color.parseColor("#1565C0")       // 提示深蓝
         }
 
+        val shape = android.graphics.drawable.GradientDrawable().apply {
+            setColor(bannerBgColor)
+            cornerRadius = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 14f, activity.resources.displayMetrics)
+        }
+        val marginH = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 12f, activity.resources.displayMetrics).toInt()
+        val statusBarHeight = getStatusBarHeight(activity)
+
         val bannerContainer = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(bannerBgColor)
-            elevation = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 24f, activity.resources.displayMetrics)
-            val padH = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 16f, activity.resources.displayMetrics).toInt()
-            val padV = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 12f, activity.resources.displayMetrics).toInt()
-            val statusBarHeight = getStatusBarHeight(activity)
-            setPadding(padH, padV + statusBarHeight, padH, padV)
+            background = shape
+            elevation = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 12f, activity.resources.displayMetrics)
+            val padH = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 14f, activity.resources.displayMetrics).toInt()
+            val padV = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 10f, activity.resources.displayMetrics).toInt()
+            setPadding(padH, padV, padH, padV)
         }
 
         val titleTv = TextView(activity).apply {
@@ -225,6 +231,7 @@ object InAppNotifier : AnomalyListener {
             ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply {
             gravity = Gravity.TOP
+            setMargins(marginH, statusBarHeight + 8, marginH, 0)
         }
 
         val bannerTag = "TAG_MONITOR_ANOMALY_BANNER"
@@ -275,6 +282,9 @@ object InAppNotifier : AnomalyListener {
     }
 
     private fun getStatusBarHeight(activity: Activity): Int {
+        val insets = androidx.core.view.ViewCompat.getRootWindowInsets(activity.window.decorView)
+        val statusBarTop = insets?.getInsets(androidx.core.view.WindowInsetsCompat.Type.statusBars())?.top ?: 0
+        if (statusBarTop > 0) return statusBarTop
         val resourceId = activity.resources.getIdentifier("status_bar_height", "dimen", "android")
         return if (resourceId > 0) activity.resources.getDimensionPixelSize(resourceId) else 0
     }

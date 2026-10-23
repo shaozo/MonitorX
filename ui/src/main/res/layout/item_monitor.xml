@@ -1,114 +1,132 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content">
+    android:layout_height="wrap_content"
+    android:layout_marginStart="12dp"
+    android:layout_marginTop="6dp"
+    android:layout_marginEnd="12dp"
+    android:layout_marginBottom="6dp"
+    app:cardBackgroundColor="?attr/colorSurface"
+    app:cardCornerRadius="12dp"
+    app:cardElevation="1dp"
+    app:strokeColor="?attr/colorOutline"
+    app:strokeWidth="1dp">
 
-    <TextView
-        android:id="@+id/tv_source"
-        android:layout_width="wrap_content"
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginLeft="10dp"
-        android:background="@drawable/bg_flutter_tag"
-        android:gravity="center"
-        android:paddingLeft="5dp"
-        android:paddingRight="5dp"
-        android:textColor="@color/monitor_white"
-        android:textSize="14dp"
-        android:visibility="gone"
-        app:layout_constraintLeft_toLeftOf="parent"
-        app:layout_constraintTop_toTopOf="@+id/tv_host"
-        app:layout_constraintVertical_chainStyle="packed"
-        tools:text="flutter"
-        tools:visibility="visible" />
+        android:padding="12dp">
 
-    <TextView
-        android:id="@+id/tv_host"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginLeft="10dp"
-        android:layout_marginTop="10dp"
-        android:layout_marginRight="5dp"
-        android:textSize="14dp"
-        app:layout_constraintLeft_toRightOf="@+id/tv_source"
-        app:layout_constraintRight_toLeftOf="@+id/tv_code"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_chainStyle="packed"
-        app:layout_goneMarginLeft="10dp"
-        tools:text="https://dev-outspace.secon.cn/" />
+        <!-- Method Tag -->
+        <TextView
+            android:id="@+id/tv_method"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_flutter_tag"
+            android:fontFamily="sans-serif-medium"
+            android:gravity="center"
+            android:paddingStart="8dp"
+            android:paddingTop="2dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="2dp"
+            android:textColor="@color/monitor_white"
+            android:textSize="11sp"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            tools:text="GET" />
 
-    <TextView
-        android:id="@+id/tv_path"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="5dp"
-        android:layout_marginBottom="5dp"
-        android:textSize="16dp"
-        app:layout_constraintBottom_toTopOf="@+id/tv_request_date"
-        app:layout_constraintLeft_toLeftOf="@+id/tv_source"
-        app:layout_constraintRight_toRightOf="@+id/tv_host"
-        app:layout_constraintTop_toBottomOf="@+id/tv_host"
-        app:layout_constraintVertical_chainStyle="packed"
-        app:layout_goneMarginLeft="10dp"
-        tools:text="spero-ultron-service/user/spero_165653/image" />
+        <!-- Source Tag (e.g. Flutter) -->
+        <TextView
+            android:id="@+id/tv_source"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:background="@drawable/bg_flutter_tag"
+            android:fontFamily="sans-serif-medium"
+            android:gravity="center"
+            android:paddingStart="6dp"
+            android:paddingTop="2dp"
+            android:paddingEnd="6dp"
+            android:paddingBottom="2dp"
+            android:textColor="@color/monitor_white"
+            android:textSize="10sp"
+            android:visibility="gone"
+            app:layout_constraintBottom_toBottomOf="@+id/tv_method"
+            app:layout_constraintStart_toEndOf="@+id/tv_method"
+            app:layout_constraintTop_toTopOf="@+id/tv_method"
+            tools:text="flutter"
+            tools:visibility="visible" />
 
-    <TextView
-        android:id="@+id/tv_request_date"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="10dp"
-        android:textSize="12dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintLeft_toLeftOf="@+id/tv_source"
-        app:layout_constraintRight_toRightOf="@+id/tv_host"
-        app:layout_constraintVertical_chainStyle="packed"
-        app:layout_goneMarginLeft="10dp"
-        tools:text="12：10" />
+        <!-- Host -->
+        <TextView
+            android:id="@+id/tv_host"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp"
+            android:ellipsize="middle"
+            android:fontFamily="monospace"
+            android:maxLines="1"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="13sp"
+            app:layout_constraintBottom_toBottomOf="@+id/tv_method"
+            app:layout_constraintEnd_toStartOf="@+id/tv_code"
+            app:layout_constraintStart_toEndOf="@+id/tv_source"
+            app:layout_constraintTop_toTopOf="@+id/tv_method"
+            tools:text="https://api.example.com" />
 
-    <TextView
-        android:id="@+id/tv_duration"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="10dp"
-        android:textSize="12dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintRight_toRightOf="@+id/tv_host"
-        app:layout_constraintVertical_chainStyle="packed"
-        tools:text="100ms" />
+        <!-- Response Code -->
+        <TextView
+            android:id="@+id/tv_code"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-bold"
+            android:textSize="16sp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            tools:text="200" />
 
+        <!-- Path -->
+        <TextView
+            android:id="@+id/tv_path"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="8dp"
+            android:ellipsize="end"
+            android:fontFamily="sans-serif-medium"
+            android:maxLines="2"
+            android:textSize="16sp"
+            app:layout_constraintEnd_toStartOf="@+id/tv_duration"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/tv_method"
+            tools:text="/v1/service/user/profile" />
 
-    <TextView
-        android:id="@+id/tv_method"
-        android:layout_width="80dp"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="8dp"
-        android:gravity="center"
-        android:textSize="18dp"
-        app:layout_constraintBottom_toTopOf="@+id/tv_code"
-        app:layout_constraintRight_toRightOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_chainStyle="packed"
-        tools:text="GET" />
+        <!-- Duration -->
+        <TextView
+            android:id="@+id/tv_duration"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="13sp"
+            app:layout_constraintBottom_toBottomOf="@+id/tv_path"
+            app:layout_constraintEnd_toEndOf="parent"
+            tools:text="120ms" />
 
-    <TextView
-        android:id="@+id/tv_code"
-        android:layout_width="80dp"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:gravity="center"
-        android:text="200"
-        android:textSize="18dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintRight_toRightOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/tv_method"
-        app:layout_constraintVertical_chainStyle="packed" />
+        <!-- Timestamp -->
+        <TextView
+            android:id="@+id/tv_request_date"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="12sp"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/tv_path"
+            tools:text="14:32:05" />
 
-    <View
-        android:layout_width="0dp"
-        android:layout_height="0.5dp"
-        android:background="@color/monitor_color_line"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintLeft_toLeftOf="parent"
-        app:layout_constraintRight_toRightOf="parent" />
-</androidx.constraintlayout.widget.ConstraintLayout>
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</com.google.android.material.card.MaterialCardView>

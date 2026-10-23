@@ -10,6 +10,7 @@ import com.shaovi.monitorx.data.MonitorData
 import com.shaovi.monitorx.enum.SPValueType
 import com.shaovi.monitorx.im.ImMessageCollector
 import com.shaovi.monitorx.im.ImMessageRecord
+import com.google.gson.Gson
 import com.shaovi.monitorx.mock.MockHelper
 import com.shaovi.monitorx.utils.ServiceDataProvider
 import com.shaovi.monitorx.utils.lastUpdateDataId
@@ -361,6 +362,51 @@ abstract class MonitorService {
     @Get("openMockService")
     fun openMockService(isOpen: Boolean) {
         MockHelper.isOpen = isOpen
+    }
+
+    @Get("getMockRules")
+    fun getMockRules(): String {
+        val result = mapOf(
+            "isOpen" to MockHelper.isOpen,
+            "rules" to MockHelper.rules
+        )
+        return Gson().toJson(result)
+    }
+
+    @Get("saveMockRule")
+    fun saveMockRule(
+        id: String,
+        name: String,
+        path: String,
+        method: String,
+        statusCode: Int,
+        responseBody: String,
+        mockBaseUrl: String,
+        delayMs: Long,
+        isEnabled: Boolean
+    ) {
+        val rule = com.shaovi.monitorx.mock.MockRule(
+            id = if (id.isBlank()) java.util.UUID.randomUUID().toString() else id,
+            name = name,
+            path = path,
+            method = if (method.isBlank()) "ALL" else method,
+            statusCode = if (statusCode <= 0) 200 else statusCode,
+            responseBody = responseBody,
+            mockBaseUrl = mockBaseUrl,
+            delayMs = delayMs,
+            isEnabled = isEnabled
+        )
+        MockHelper.addOrUpdateRule(rule)
+    }
+
+    @Get("deleteMockRule")
+    fun deleteMockRule(id: String) {
+        MockHelper.deleteRule(id)
+    }
+
+    @Get("toggleMockRule")
+    fun toggleMockRule(id: String, isEnabled: Boolean) {
+        MockHelper.toggleRule(id, isEnabled)
     }
 }
 

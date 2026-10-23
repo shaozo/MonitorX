@@ -44,6 +44,9 @@ class SPFileListFragment : Fragment() {
 
     private fun initData() {
         val list = MonitorHelper.getSharedPrefsFilesData().map { SpData(it.key) }.toList()
+        val isEmpty = list.isEmpty()
+        binding.llEmptyState.visibility = if (isEmpty) View.VISIBLE else View.GONE
+        binding.recyclerVew.visibility = if (isEmpty) View.GONE else View.VISIBLE
         adapter?.setData(list)
     }
 

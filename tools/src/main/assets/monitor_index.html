@@ -443,13 +443,42 @@
 
     <!-- Mock Drawer Panel -->
     <div id="mockDrawer" class="mock-drawer">
-        <div style="font-weight: 700; margin-bottom: 8px; font-size: 13px; color: #856404;">⚙️ Mock 局部服务配置</div>
-        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 8px;">
-            <input id="mock_base_url_input" type="text" class="form-control" style="flex:1; min-width: 180px;" placeholder="Mock Base URL (可为空)">
-            <input id="mock_path_input" type="text" class="form-control" style="flex:1; min-width: 180px;" placeholder="Mock Path (必须如 /api/user)">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
+            <div style="font-weight: 700; font-size: 14px; color: #856404;">⚙️ 多地址/多规则 Mock 管理服务</div>
+            <button type="button" id="btn_refresh_mock" class="btn btn-secondary btn-xs">🔄 刷新规则</button>
         </div>
-        <textarea id="mock_response_input" class="form-control" style="width:100%; height:70px; font-family:var(--font-mono); margin-bottom:8px;" placeholder="Mock JSON Response Body"></textarea>
-        <button type="button" id="apply_mock_btn" class="btn btn-primary btn-xs">应用 Mock 配置</button>
+
+        <!-- Rules Table/List -->
+        <div id="mock_rules_container" style="margin-bottom:12px; max-height:220px; overflow-y:auto; background:#fff; border:1px solid #e0d0b0; border-radius:4px; padding:6px;">
+            <div style="color:#888; font-size:12px; padding:8px; text-align:center;">正在载入 Mock 规则...</div>
+        </div>
+
+        <!-- Add/Edit Rule Form -->
+        <div style="background:#fff7ea; padding:10px; border-radius:4px; border:1px dashed #d4b160;">
+            <div style="font-size:12px; font-weight:600; margin-bottom:6px; color:#6d4c00;">➕ 添加 / 修改 Mock 规则</div>
+            <input id="mock_rule_id" type="hidden" value="">
+            <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 6px;">
+                <input id="mock_rule_name" type="text" class="form-control" style="flex:1; min-width: 140px;" placeholder="规则名称 (如: 用户信息)">
+                <input id="mock_path_input" type="text" class="form-control" style="flex:2; min-width: 180px;" placeholder="Path (如 /api/v1/user/info)">
+                <select id="mock_method_select" class="form-control" style="width: 90px;">
+                    <option value="ALL">ALL</option>
+                    <option value="GET">GET</option>
+                    <option value="POST">POST</option>
+                    <option value="PUT">PUT</option>
+                    <option value="DELETE">DELETE</option>
+                </select>
+                <input id="mock_code_input" type="number" class="form-control" style="width: 80px;" placeholder="状态码" value="200">
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 6px;">
+                <input id="mock_base_url_input" type="text" class="form-control" style="flex:2; min-width: 200px;" placeholder="可选：重定向目标 BaseUrl (如 http://mock-server:8080)">
+                <input id="mock_delay_input" type="number" class="form-control" style="width: 130px;" placeholder="延迟 (ms)" value="0">
+            </div>
+            <textarea id="mock_response_input" class="form-control" style="width:100%; height:75px; font-family:var(--font-mono); margin-bottom:8px;" placeholder='Mock 响应 JSON (如: {"code":200, "message":"ok"})'></textarea>
+            <div style="display:flex; gap:8px;">
+                <button type="button" id="apply_mock_btn" class="btn btn-primary btn-xs">保存 Mock 规则</button>
+                <button type="button" id="reset_mock_form_btn" class="btn btn-secondary btn-xs">清空表单</button>
+            </div>
+        </div>
     </div>
 
     <!-- Anomaly Alert Banner -->
@@ -631,6 +660,82 @@
         $("#filterError").on("click", function () { setFilter("error"); });
         $("#filterSlow").on("click", function () { setFilter("slow"); });
 
+        function loadMockRules() {
+            $.get("/getMockRules", function (respStr) {
+                var data = typeof respStr === "string" ? JSON.parse(respStr) : respStr;
+                $("#isOpenMock").prop("checked", !!data.isOpen);
+                var rules = data.rules || [];
+                if (rules.length === 0) {
+                    $("#mock_rules_container").html('<div style="color:#999; font-size:12px; padding:10px; text-align:center;">暂无活跃 Mock 规则，请在下方添加</div>');
+                    return;
+                }
+                var html = '<table style="width:100%; font-size:12px; border-collapse:collapse;">';
+                html += '<tr style="border-bottom:1px solid #eee; background:#fafafa; font-weight:600; color:#555;">';
+                html += '<th style="padding:4px 6px;">启用</th><th style="padding:4px 6px;">名称</th><th style="padding:4px 6px;">方法</th><th style="padding:4px 6px;">Path</th><th style="padding:4px 6px;">Code</th><th style="padding:4px 6px;">操作</th></tr>';
+                rules.forEach(function (r) {
+                    var statusChecked = r.isEnabled ? 'checked' : '';
+                    html += '<tr style="border-bottom:1px solid #f0f0f0;">';
+                    html += '<td style="padding:4px 6px;"><input type="checkbox" class="toggle-rule-cb" data-id="' + r.id + '" ' + statusChecked + '></td>';
+                    html += '<td style="padding:4px 6px; font-weight:600;">' + (r.name || '未命名') + '</td>';
+                    html += '<td style="padding:4px 6px;"><span class="badge">' + (r.method || 'ALL') + '</span></td>';
+                    html += '<td style="padding:4px 6px; font-family:monospace; color:#2563eb;">' + (r.path || '') + '</td>';
+                    html += '<td style="padding:4px 6px;">' + (r.statusCode || 200) + '</td>';
+                    html += '<td style="padding:4px 6px;">' +
+                        '<button class="btn btn-secondary btn-xs edit-rule-btn" data-rule=\'' + JSON.stringify(r).replace(/'/g, "&#39;") + '\' style="margin-right:4px;">编辑</button>' +
+                        '<button class="btn btn-danger btn-xs del-rule-btn" data-id="' + r.id + '">删除</button>' +
+                        '</td>';
+                    html += '</tr>';
+                });
+                html += '</table>';
+                $("#mock_rules_container").html(html);
+
+                // 绑定列表动态事件
+                $(".toggle-rule-cb").off("change").on("change", function () {
+                    var id = $(this).data("id");
+                    var isEnabled = $(this).is(":checked");
+                    $.get("/toggleMockRule?id=" + encodeURIComponent(id) + "&isEnabled=" + isEnabled, function () {
+                        loadMockRules();
+                    });
+                });
+
+                $(".del-rule-btn").off("click").on("click", function () {
+                    var id = $(this).data("id");
+                    if (confirm("确定删除此 Mock 规则？")) {
+                        $.get("/deleteMockRule?id=" + encodeURIComponent(id), function () {
+                            loadMockRules();
+                        });
+                    }
+                });
+
+                $(".edit-rule-btn").off("click").on("click", function () {
+                    var rule = JSON.parse($(this).attr("data-rule"));
+                    $("#mock_rule_id").val(rule.id || "");
+                    $("#mock_rule_name").val(rule.name || "");
+                    $("#mock_path_input").val(rule.path || "");
+                    $("#mock_method_select").val(rule.method || "ALL");
+                    $("#mock_code_input").val(rule.statusCode || 200);
+                    $("#mock_base_url_input").val(rule.mockBaseUrl || "");
+                    $("#mock_delay_input").val(rule.delayMs || 0);
+                    $("#mock_response_input").val(rule.responseBody || "");
+                    $("#apply_mock_btn").text("更新 Mock 规则");
+                });
+            });
+        }
+
+        $("#btn_refresh_mock").on("click", loadMockRules);
+
+        $("#reset_mock_form_btn").on("click", function () {
+            $("#mock_rule_id").val("");
+            $("#mock_rule_name").val("");
+            $("#mock_path_input").val("");
+            $("#mock_method_select").val("ALL");
+            $("#mock_code_input").val(200);
+            $("#mock_base_url_input").val("");
+            $("#mock_delay_input").val(0);
+            $("#mock_response_input").val("");
+            $("#apply_mock_btn").text("保存 Mock 规则");
+        });
+
         $("#isOpenMock").change(function () {
             var isOpen = $(this).is(':checked');
             $.get("/openMockService?isOpen=" + isOpen, function () {
@@ -639,7 +744,11 @@
         });
 
         $("#toggleMock").on("click", function () {
-            $("#mockDrawer").slideToggle(150);
+            $("#mockDrawer").slideToggle(150, function () {
+                if ($(this).is(":visible")) {
+                    loadMockRules();
+                }
+            });
         });
 
         $("#toggleFilters").on("click", function () {
@@ -654,16 +763,36 @@
         });
 
         $("#apply_mock_btn").on("click", function () {
-            var mockBaseUrl = $("#mock_base_url_input").val();
-            var mockPath = $("#mock_path_input").val();
-            var mockResponse = $("#mock_response_input").val();
-            if (!mockPath) { alert("Mock 的 Path 不能为空"); return; }
-            $.post("/setMockConfig", { mockBaseUrl: mockBaseUrl, mockPath: mockPath, mockResponse: mockResponse }, function (data, status) {
-                alert(status === "success" ? "Mock 环境配置成功" : "Mock 配置失败");
+            var id = $("#mock_rule_id").val();
+            var name = $("#mock_rule_name").val();
+            var path = $("#mock_path_input").val();
+            var method = $("#mock_method_select").val();
+            var code = parseInt($("#mock_code_input").val(), 10) || 200;
+            var baseUrl = $("#mock_base_url_input").val();
+            var delay = parseInt($("#mock_delay_input").val(), 10) || 0;
+            var response = $("#mock_response_input").val();
+
+            if (!path) { alert("Mock 的 Path 不能为空"); return; }
+
+            var url = "/saveMockRule?id=" + encodeURIComponent(id) +
+                "&name=" + encodeURIComponent(name) +
+                "&path=" + encodeURIComponent(path) +
+                "&method=" + encodeURIComponent(method) +
+                "&statusCode=" + code +
+                "&responseBody=" + encodeURIComponent(response) +
+                "&mockBaseUrl=" + encodeURIComponent(baseUrl) +
+                "&delayMs=" + delay +
+                "&isEnabled=true";
+
+            $.get(url, function () {
+                alert("Mock 规则已保存！");
+                $("#reset_mock_form_btn").click();
+                loadMockRules();
             });
         });
 
         initCharts();
+        loadMockRules();
         query();
 
         $("#btnOpenAnomalyPanel").on("click", function () {

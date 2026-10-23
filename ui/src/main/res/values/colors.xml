@@ -1,18 +1,39 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="monitor_colorPrimary">#1774FF</color>
-    <color name="monitor_colorPrimaryDark">#3E47FD</color>
-    <color name="monitor_colorAccent">#D81B60</color>
-    <color name="monitor_color_line">#e6e6e6</color>
+    <!-- Brand / Accent Colors -->
+    <color name="monitor_colorPrimary">#2563EB</color>
+    <color name="monitor_colorPrimaryDark">#1D4ED8</color>
+    <color name="monitor_colorAccent">#F43F5E</color>
+    <color name="monitor_color_line">#E2E8F0</color>
 
-    <color name="monitor_status_success">#2E3032</color>
-    <color name="monitor_status_requested">#888F86</color>
-    <color name="monitor_status_error">#F44336</color>
-    <color name="monitor_status_300">#3E47FD</color>
-    <color name="monitor_status_400">#673AB7</color>
-    <color name="monitor_status_500">#26E79F</color>
+    <!-- HTTP Status Colors -->
+    <color name="monitor_status_success">#16A34A</color>
+    <color name="monitor_status_requested">#64748B</color>
+    <color name="monitor_status_error">#DC2626</color>
+    <color name="monitor_status_300">#2563EB</color>
+    <color name="monitor_status_400">#D97706</color>
+    <color name="monitor_status_500">#DC2626</color>
 
-    <color name="monitor_white">#ffffff</color>
-    <color name="monitor_block">#000000</color>
-    <color name="monitor_block_color">#22aaaaaa</color>
+    <!-- Material 3 Surface & Background Colors -->
+    <color name="monitor_surface">#FFFFFF</color>
+    <color name="monitor_surface_variant">#F1F5F9</color>
+    <color name="monitor_surface_container">#F8FAFC</color>
+    <color name="monitor_on_surface">#0F172A</color>
+    <color name="monitor_on_surface_variant">#64748B</color>
+    <color name="monitor_outline">#E2E8F0</color>
+
+    <!-- Backward Compatibility Alias -->
+    <color name="monitor_white">#FFFFFF</color>
+    <color name="monitor_block">#0F172A</color>
+    <color name="monitor_block_color">#F1F5F9</color>
+
+    <!-- HTTP Method Chip Colors -->
+    <color name="monitor_chip_get_bg">#E0F2FE</color>
+    <color name="monitor_chip_get_text">#0284C7</color>
+    <color name="monitor_chip_post_bg">#DCFCE7</color>
+    <color name="monitor_chip_post_text">#16A34A</color>
+    <color name="monitor_chip_put_bg">#FEF3C7</color>
+    <color name="monitor_chip_put_text">#D97706</color>
+    <color name="monitor_chip_delete_bg">#FEE2E2</color>
+    <color name="monitor_chip_delete_text">#DC2626</color>
 </resources>

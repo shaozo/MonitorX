@@ -6,6 +6,9 @@ pluginManagement {
         gradlePluginPortal()
     }
 }
+plugins {
+    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
+}
 
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
@@ -26,3 +29,6 @@ listOf("api", "core", "source-okhttp", "okhttp", "runtime-android", "tools", "ui
     include(path)
     project(path).projectDir = file(name)
 }
+
+include(":sample")
+project(":sample").projectDir = file("sample")

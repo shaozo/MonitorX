@@ -25,6 +25,7 @@ dependencies {
     api(project(":monitorX:tools"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
+    implementation(libs.androidx.activity.ktx)
     implementation(libs.material)
     implementation(libs.androidx.swiperefreshlayout)
     implementation(libs.androidx.lifecycle.runtimeKtx)

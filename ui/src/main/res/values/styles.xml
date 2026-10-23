@@ -1,15 +1,26 @@
 <resources>
-
-    <!-- Base application theme. -->
-    <style name="Monitor_AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
-        <!-- Customize your theme here. -->
+    <!-- Base Material 3 Application Theme -->
+    <style name="Monitor_AppTheme" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="colorPrimary">@color/monitor_colorPrimary</item>
-        <item name="colorPrimaryDark">@color/monitor_colorPrimaryDark</item>
+        <item name="colorOnPrimary">#ffffff</item>
+        <item name="colorPrimaryContainer">@color/monitor_surface_variant</item>
+        <item name="colorOnPrimaryContainer">@color/monitor_on_surface</item>
+
+        <item name="colorSecondary">@color/monitor_colorPrimaryDark</item>
         <item name="colorAccent">@color/monitor_colorAccent</item>
-        <item name="android:windowTranslucentStatus">true</item>
+
+        <item name="android:colorBackground">@color/monitor_surface</item>
+        <item name="colorSurface">@color/monitor_surface</item>
+        <item name="colorOnSurface">@color/monitor_on_surface</item>
+        <item name="colorSurfaceVariant">@color/monitor_surface_variant</item>
+        <item name="colorOnSurfaceVariant">@color/monitor_on_surface_variant</item>
+
+        <!-- System Bars Transparent for Edge-to-Edge -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
 
-    <style name="B2TDialogTheme" parent="@android:style/Theme.Dialog">
+    <style name="B2TDialogTheme" parent="Theme.Material3.DayNight.Dialog">
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowFrame">@null</item>
         <item name="android:windowIsFloating">true</item>

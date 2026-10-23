@@ -3,26 +3,22 @@
 
     <item
         android:id="@+id/navigation_monitor"
-        android:icon="@mipmap/monitor_icon_tab_network"
-        android:title="网络数据" />
-
-    <item
-        android:id="@+id/navigation_im"
-        android:icon="@mipmap/monitor_icon_tab_network"
-        android:title="IM消息" />
-
-    <item
-        android:id="@+id/navigation_sharedPrefs"
-        android:icon="@mipmap/monitor_icon_tab_file"
-        android:title="SP文件" />
-
-    <item
-        android:id="@+id/navigation_api_debug"
-        android:icon="@mipmap/monitor_icon_tab_network"
-        android:title="接口调试" />
+        android:icon="@drawable/ic_tab_network"
+        android:title="网络" />
 
     <item
         android:id="@+id/navigation_business_issues"
-        android:icon="@android:drawable/stat_notify_error"
-        android:title="业务问题" />
+        android:icon="@drawable/ic_tab_warning"
+        android:title="异常" />
+
+    <item
+        android:id="@+id/navigation_sharedPrefs"
+        android:icon="@drawable/ic_tab_storage"
+        android:title="存储" />
+
+    <item
+        android:id="@+id/navigation_tools"
+        android:icon="@drawable/ic_tab_tools"
+        android:title="工具" />
+
 </menu>
