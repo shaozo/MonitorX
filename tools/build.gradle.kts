@@ -5,11 +5,11 @@ plugins {
     id("maven-publish")
 }
 
-group = "com.hkjustar.monitorx"
+group = "com.shaovi.monitorx"
 version = providers.gradleProperty("monitorx.version").getOrElse("0.1.0-SNAPSHOT")
 
 android {
-    namespace = "com.hkjustar.monitor.tools"
+    namespace = "com.shaovi.monitorx.tools"
     compileSdk = 36
 
     defaultConfig {

@@ -3,7 +3,7 @@ plugins {
     `maven-publish`
 }
 
-group = "com.hkjustar.monitorx"
+group = "com.shaovi.monitorx"
 version = providers.gradleProperty("monitorx.version").getOrElse("0.1.0-SNAPSHOT")
 
 java {
@@ -23,12 +23,8 @@ dependencies {
 gradlePlugin {
     plugins {
         register("monitorXPlugin") {
-            id = "com.hkjustar.monitorx"
-            implementationClass = "MonitorOkHttpPlugin"
-        }
-        register("legacyMonitorOkHttpPlugin") {
-            id = "com.hkjustar.monitor.okhttp"
-            implementationClass = "MonitorOkHttpPlugin"
+            id = "com.shaovi.monitorx"
+            implementationClass = "com.shaovi.monitorx.gradle.MonitorOkHttpPlugin"
         }
     }
 }

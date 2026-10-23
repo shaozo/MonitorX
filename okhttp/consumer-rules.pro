@@ -1,2 +1,2 @@
 # monitor
--keep class com.hkjustar.monitor.okhttp.** { *; }
+-keep class com.shaovi.monitorx.** { *; }

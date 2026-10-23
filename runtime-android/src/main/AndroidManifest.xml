@@ -8,7 +8,7 @@
             android:exported="false"
             tools:node="merge">
             <meta-data
-                android:name="com.hkjustar.monitorx.runtime.MonitorRuntimeInitializer"
+                android:name="com.shaovi.monitorx.runtime.MonitorRuntimeInitializer"
                 android:value="androidx.startup" />
         </provider>
     </application>

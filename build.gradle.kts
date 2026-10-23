@@ -9,7 +9,7 @@ plugins {
 }
 
 allprojects {
-    group = "com.hkjustar.monitorx"
+    group = "com.shaovi.monitorx"
     version = providers.gradleProperty("monitorx.version").getOrElse("0.1.0-SNAPSHOT")
 }
 

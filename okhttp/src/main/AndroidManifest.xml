@@ -10,7 +10,7 @@
             tools:node="merge">
 
             <meta-data
-                android:name="com.hkjustar.monitor.okhttp.provider.MonitorInitializer"
+                android:name="com.shaovi.monitorx.provider.MonitorInitializer"
                 android:value="androidx.startup" />
 
         </provider>

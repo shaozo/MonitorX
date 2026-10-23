@@ -7,7 +7,7 @@
             android:exported="true"
             android:icon="@mipmap/monitor_logo"
             android:label="@string/monitor_app_name"
-            android:taskAffinity="com.hkjustar.monitor.okhttp.${applicationId}"
+            android:taskAffinity="com.shaovi.monitorx.${applicationId}"
             android:theme="@style/Monitor_AppTheme" />
         <activity android:name=".ui.MonitorDetailActivity" android:exported="false" android:theme="@style/Monitor_AppTheme" />
         <activity android:name=".ui.MonitorConfigActivity" android:exported="false" android:theme="@style/Monitor_AppTheme" />
@@ -19,8 +19,8 @@
             android:exported="true"
             android:icon="@mipmap/monitor_logo"
             android:label="@string/monitor_app_name"
-            android:targetActivity="com.hkjustar.monitor.okhttp.ui.MonitorMainActivity"
-            android:taskAffinity="com.hkjustar.monitor.okhttp.${applicationId}">
+            android:targetActivity="com.shaovi.monitorx.ui.MonitorMainActivity"
+            android:taskAffinity="com.shaovi.monitorx.${applicationId}">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -32,7 +32,7 @@
             android:exported="false"
             tools:node="merge">
             <meta-data
-                android:name="com.hkjustar.monitor.okhttp.ui.MonitorUiInitializer"
+                android:name="com.shaovi.monitorx.ui.MonitorUiInitializer"
                 android:value="androidx.startup" />
         </provider>
     </application>

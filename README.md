@@ -56,10 +56,10 @@ download; Maven metadata is preferred because MonitorX contains multiple transit
 ## Consumer integration
 
 ```kotlin
-plugins { id("com.hkjustar.monitorx") version "1.0.0" }
+plugins { id("com.shaovi.monitorx") version "1.0.0" }
 
 dependencies {
-    debugImplementation("com.hkjustar.monitorx:monitor-ui:1.0.0")
+    debugImplementation("com.shaovi.monitorx:monitor-ui:1.0.0")
 }
 
 MonitorX {
@@ -111,5 +111,4 @@ see [`BUSINESS_MONITORING.md`](BUSINESS_MONITORING.md).
 5. Publish libraries and the Gradle plugin.
 6. Replace Gemgala project dependencies with Maven coordinates.
 
-Packages under `com.hkjustar.monitor.okhttp` remain temporarily stable for binary compatibility.
-New public APIs use `com.hkjustar.monitorx`.
+All published APIs and Android namespaces use the personal `com.shaovi.monitorx` namespace.

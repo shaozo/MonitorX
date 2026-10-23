@@ -1,1 +1,1 @@
--keep class com.hkjustar.monitor.okhttp.ui.** { *; }
+-keep class com.shaovi.monitorx.ui.** { *; }

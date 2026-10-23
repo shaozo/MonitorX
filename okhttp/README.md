@@ -8,7 +8,7 @@
 
 ```kotlin
 plugins {
-    id("com.hkjustar.monitor.okhttp")
+    id("com.shaovi.monitorx")
 }
 
 dependencies {
