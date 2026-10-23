@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MonitorX - 业务监控</title>
+    <style>
+        :root { --bg:#f3f5f8; --surface:#fff; --border:#e2e7ee; --text:#1f2937; --muted:#667085; --primary:#3772ff; --primary-bg:#edf3ff; --success:#079455; --warning:#dc8800; --danger:#d92d20; --shadow:0 1px 3px rgba(16,24,40,.08); --radius:9px; --mono:'SFMono-Regular',Consolas,monospace; }
+        * { box-sizing:border-box; }
+        body { margin:0; min-height:100vh; color:var(--text); background:var(--bg); font:14px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; }
+        nav { height:48px; padding:0 20px; display:flex; align-items:center; gap:18px; position:sticky; top:0; z-index:20; background:var(--surface); border-bottom:1px solid var(--border); overflow-x:auto; white-space:nowrap; }
+        nav .logo { font-weight:750; font-size:16px; }
+        nav a { color:var(--muted); text-decoration:none; font-size:13px; padding:5px 9px; border-radius:6px; }
+        nav a:hover { background:var(--bg); color:var(--text); }
+        nav a.active { color:var(--primary); background:var(--primary-bg); font-weight:700; }
+        main { max-width:1440px; margin:0 auto; padding:20px; display:flex; flex-direction:column; gap:16px; }
+        .hero { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+        h1 { margin:0 0 6px; font-size:22px; }
+        .sub { color:var(--muted); font-size:13px; }
+        .actions { display:flex; gap:8px; flex-wrap:wrap; }
+        button { height:34px; padding:0 13px; border:1px solid var(--border); border-radius:7px; background:var(--surface); color:var(--text); cursor:pointer; font-weight:650; }
+        button:hover { background:#f8fafc; }
+        button.primary { color:#fff; border-color:var(--primary); background:var(--primary); }
+        button.danger { color:var(--danger); }
+        .offline { display:none; padding:12px 15px; background:#fff8e6; border:1px solid #f5c451; border-left:4px solid var(--warning); border-radius:var(--radius); color:#7a4e00; }
+        .stats { display:grid; grid-template-columns:repeat(5,minmax(150px,1fr)); gap:12px; }
+        .stat,.card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); }
+        .stat { padding:14px 16px; }
+        .stat-label { color:var(--muted); font-size:12px; margin-bottom:5px; }
+        .stat-value { font:750 24px var(--mono); }
+        .stat-note { color:var(--muted); font-size:11px; margin-top:4px; }
+        .status-on { color:var(--success); } .status-off { color:var(--warning); }
+        .tabs { display:flex; gap:6px; border-bottom:1px solid var(--border); }
+        .tab { border:0; border-radius:7px 7px 0 0; background:transparent; color:var(--muted); }
+        .tab.active { color:var(--primary); background:var(--primary-bg); }
+        .panel { display:none; } .panel.active { display:block; }
+        .toolbar { padding:12px 14px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; border-bottom:1px solid var(--border); }
+        input,select { height:34px; padding:0 10px; border:1px solid var(--border); border-radius:7px; background:#fff; color:var(--text); outline:none; }
+        input:focus,select:focus { border-color:var(--primary); box-shadow:0 0 0 2px var(--primary-bg); }
+        input[type=search] { min-width:280px; flex:1; }
+        .count { margin-left:auto; color:var(--muted); font-size:12px; }
+        .pack { margin:14px; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+        .pack-head { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:12px 14px; background:#f8fafc; cursor:pointer; }
+        .pack-title { font-weight:750; } .pack-path { font:11px var(--mono); color:var(--muted); margin-top:3px; }
+        .pill { display:inline-flex; align-items:center; padding:2px 7px; border-radius:20px; font-size:11px; font-weight:700; background:#eef2f6; color:var(--muted); }
+        .pill.enabled { color:var(--success); background:#e8f7ef; } .pill.disabled { color:var(--muted); text-decoration:line-through; }
+        .pill.CRITICAL { color:var(--danger); background:#fff0ee; } .pill.WARNING { color:var(--warning); background:#fff7e6; } .pill.INFO { color:#1769aa; background:#eaf4ff; }
+        .rule-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(360px,1fr)); gap:10px; padding:12px; }
+        .rule { border:1px solid var(--border); border-radius:8px; padding:12px; min-width:0; }
+        .rule.disabled-rule { opacity:.58; }
+        .rule-top { display:flex; justify-content:space-between; gap:10px; }
+        .rule-name { font-weight:750; margin-bottom:4px; }
+        .rule-id { color:var(--muted); font:11px var(--mono); word-break:break-all; }
+        .rule-badges { display:flex; gap:5px; align-items:flex-start; flex-wrap:wrap; justify-content:flex-end; }
+        .rule-message { margin:10px 0 8px; line-height:1.55; }
+        details { border-top:1px dashed var(--border); padding-top:7px; }
+        summary { cursor:pointer; color:var(--primary); font-size:12px; }
+        .detail-grid { margin-top:8px; display:grid; gap:6px; font-size:12px; }
+        .detail-row { display:grid; grid-template-columns:84px 1fr; gap:8px; }
+        .detail-key { color:var(--muted); }
+        code { font-family:var(--mono); font-size:11px; word-break:break-all; }
+        .history-list { padding:12px; display:flex; flex-direction:column; gap:10px; }
+        .issue { border:1px solid var(--border); border-left:4px solid var(--danger); border-radius:8px; padding:12px 14px; }
+        .issue-head { display:flex; justify-content:space-between; gap:12px; }
+        .issue-title { font-weight:750; } .issue-time { color:var(--muted); font-size:11px; white-space:nowrap; }
+        .issue-path { margin:7px 0; } .issue-message { color:#475467; line-height:1.5; }
+        .empty { padding:42px 20px; text-align:center; color:var(--muted); }
+        @media(max-width:900px) { .stats{grid-template-columns:repeat(2,1fr)} .rule-list{grid-template-columns:1fr} }
+        @media(max-width:560px) { main{padding:12px} .stats{grid-template-columns:1fr 1fr} input[type=search]{min-width:100%} .detail-row{grid-template-columns:1fr} }
+    </style>
+</head>
+<body>
+<nav>
+    <span class="logo">抓包助手</span>
+    <a href="index">网络数据</a><a href="im_index">IM消息</a><a href="sp_index">本地文件</a>
+    <a href="api_debug_index">接口调试</a><a href="performance_index">📊 性能与诊断</a>
+    <a class="active" href="#">🛡️ 业务监控</a>
+</nav>
+<main>
+    <div id="offline" class="offline"><strong>当前未连接手机 Monitor 服务。</strong> 请使用 App 展示的 <code>http://手机IP:9527/business_monitor_index</code> 地址打开本页。</div>
+    <section class="hero">
+        <div><h1>业务问题监控</h1><div class="sub">统一查看当前生效规则、规则包来源与历史命中记录。规则定义始终由业务工程提供。</div></div>
+        <div class="actions"><button onclick="loadAll()">刷新</button><button id="toggleBtn" class="primary" onclick="toggleMonitor()">暂停监控</button><button class="danger" onclick="clearHistory()">清空历史</button></div>
+    </section>
+    <section class="stats">
+        <div class="stat"><div class="stat-label">运行状态</div><div id="runtime" class="stat-value">--</div><div class="stat-note">InspectorX / FlowWatcher</div></div>
+        <div class="stat"><div class="stat-label">规则包</div><div id="packCount" class="stat-value">0</div><div class="stat-note">业务侧已加载配置</div></div>
+        <div class="stat"><div class="stat-label">启用规则</div><div id="ruleCount" class="stat-value">0</div><div id="ruleNote" class="stat-note">共 0 条</div></div>
+        <div class="stat"><div class="stat-label">历史问题</div><div id="issueCount" class="stat-value">0</div><div class="stat-note">最多保留 500 条</div></div>
+        <div class="stat"><div class="stat-label">严重 / 警告</div><div id="severityCount" class="stat-value">0 / 0</div><div class="stat-note">按当前历史统计</div></div>
+    </section>
+    <div class="tabs"><button id="rulesTab" class="tab active" onclick="switchTab('rules')">全部规则</button><button id="historyTab" class="tab" onclick="switchTab('history')">问题历史</button></div>
+    <section id="rulesPanel" class="panel active card">
+        <div class="toolbar"><input id="ruleSearch" type="search" placeholder="搜索规则名、ID、描述、接口或字段" oninput="renderRules()"><select id="typeFilter" onchange="renderRules()"><option value="ALL">全部类型</option><option>POINT</option><option>RATE</option><option>FUNNEL</option><option>DEPENDENCY</option><option>FORBIDDEN_BEFORE</option></select><select id="severityFilter" onchange="renderRules()"><option value="ALL">全部级别</option><option>CRITICAL</option><option>WARNING</option><option>INFO</option></select><select id="enabledFilter" onchange="renderRules()"><option value="ALL">全部状态</option><option value="true">已启用</option><option value="false">已停用</option></select><span id="ruleResultCount" class="count"></span></div>
+        <div id="rulePacks"></div>
+    </section>
+    <section id="historyPanel" class="panel card">
+        <div class="toolbar"><input id="historySearch" type="search" placeholder="搜索规则、接口、页面或异常内容" oninput="renderHistory()"><select id="historySeverity" onchange="renderHistory()"><option value="ALL">全部级别</option><option>CRITICAL</option><option>WARNING</option><option>INFO</option></select><span id="historyResultCount" class="count"></span></div>
+        <div id="historyList" class="history-list"></div>
+    </section>
+</main>
+<script>
+    var state = { status:null, packs:[], records:[] };
+    function esc(value) { var d=document.createElement('div'); d.textContent=value==null?'':String(value); return d.innerHTML; }
+    function api(path) { return fetch(path,{cache:'no-store'}).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }); }
+    function matcherText(m) { if(!m) return '-'; var parts=[]; if(m.eventType) parts.push(m.eventType); if(m.name) parts.push('name='+m.name); if(m.nameRegex) parts.push('name~'+m.nameRegex); if(m.pathRegex) parts.push('path~'+m.pathRegex); Object.keys(m.attributes||{}).forEach(function(k){parts.push(k+'='+m.attributes[k]);}); return parts.join(' · ')||'-'; }
+    function conditionsText(items,mode) { if(!items||!items.length) return '-'; return items.map(function(c){ var v=c.value!=null?c.value:(c.values||[]).join('|'); return c.attribute+' '+c.operator+(v?' '+v:''); }).join(mode==='ANY'?'  OR  ':'  AND  '); }
+    function ruleSearchText(rule) { return JSON.stringify(rule).toLowerCase(); }
+    function renderRules() {
+        var keyword=document.getElementById('ruleSearch').value.trim().toLowerCase(), type=document.getElementById('typeFilter').value, severity=document.getElementById('severityFilter').value, enabled=document.getElementById('enabledFilter').value, shown=0, html='';
+        state.packs.forEach(function(pack){
+            var rules=(pack.rules||[]).filter(function(rule){ return (type==='ALL'||rule.type===type)&&(severity==='ALL'||rule.severity===severity)&&(enabled==='ALL'||String(rule.enabled)===enabled)&&(!keyword||ruleSearchText(rule).indexOf(keyword)>=0); });
+            if(!rules.length) return; shown+=rules.length;
+            html+='<div class="pack"><div class="pack-head"><div><div class="pack-title">'+esc(pack.name)+'</div><div class="pack-path">'+esc(pack.assetPath)+'</div></div><span class="pill enabled">'+rules.length+' 条匹配 / '+pack.totalRules+' 条</span></div><div class="rule-list">';
+            rules.forEach(function(r){
+                var target=r.matcher||r.trigger||r.forbidden||r.start, completion=r.prerequisite||r.allowedAfter||r.completion;
+                html+='<article class="rule '+(r.enabled?'':'disabled-rule')+'"><div class="rule-top"><div><div class="rule-name">'+esc(r.name)+'</div><div class="rule-id">'+esc(r.id)+'</div></div><div class="rule-badges"><span class="pill '+esc(r.severity)+'">'+esc(r.severity)+'</span><span class="pill">'+esc(r.type)+'</span><span class="pill '+(r.enabled?'enabled':'disabled')+'">'+(r.enabled?'启用':'停用')+'</span></div></div><div class="rule-message">'+esc(r.message)+'</div><details><summary>查看触发条件与处理建议</summary><div class="detail-grid"><div class="detail-row"><span class="detail-key">监听事件</span><code>'+esc(matcherText(target))+'</code></div>'+(completion?'<div class="detail-row"><span class="detail-key">前置/完成</span><code>'+esc(matcherText(completion))+'</code></div>':'')+'<div class="detail-row"><span class="detail-key">字段条件</span><code>'+esc(conditionsText(r.conditions,r.conditionMode))+'</code></div>'+(r.contextConditions&&r.contextConditions.length?'<div class="detail-row"><span class="detail-key">上下文条件</span><code>'+esc(conditionsText(r.contextConditions,'ALL'))+'</code></div>':'')+(r.windowMs!=null?'<div class="detail-row"><span class="detail-key">时间窗口</span><code>'+r.windowMs+' ms'+(r.maxCount!=null?'，最大 '+r.maxCount+' 次':'')+'</code></div>':'')+(r.correlationAttribute?'<div class="detail-row"><span class="detail-key">关联字段</span><code>'+esc(r.correlationAttribute)+'</code></div>':'')+'<div class="detail-row"><span class="detail-key">处理建议</span><span>'+esc(r.solution||'-')+'</span></div></div></details></article>';
+            }); html+='</div></div>';
+        });
+        document.getElementById('rulePacks').innerHTML=html||'<div class="empty">没有符合筛选条件的规则</div>'; document.getElementById('ruleResultCount').textContent='显示 '+shown+' 条';
+    }
+    function renderHistory() {
+        var keyword=document.getElementById('historySearch').value.trim().toLowerCase(), severity=document.getElementById('historySeverity').value;
+        var records=state.records.filter(function(r){return (severity==='ALL'||r.severity===severity)&&(!keyword||JSON.stringify(r).toLowerCase().indexOf(keyword)>=0);});
+        document.getElementById('historyResultCount').textContent='显示 '+records.length+' 条';
+        document.getElementById('historyList').innerHTML=records.length?records.map(function(r){return '<article class="issue"><div class="issue-head"><div class="issue-title"><span class="pill '+esc(r.severity)+'">'+esc(r.severity)+'</span> '+esc(r.ruleName)+'</div><div class="issue-time">'+esc(r.timeString)+'</div></div><div class="issue-path"><code>'+esc(r.path||r.url)+'</code></div><div class="issue-message">'+esc(r.alertMessage)+'</div><div class="detail-grid"><div class="detail-row"><span class="detail-key">现场值</span><code>'+esc(r.paramKey)+' = '+esc(r.actualValue||'null')+'</code></div><div class="detail-row"><span class="detail-key">所在页面</span><span>'+esc(r.activityName||'-')+'</span></div><div class="detail-row"><span class="detail-key">处理建议</span><span>'+esc(r.solution||'-')+'</span></div></div></article>';}).join(''):'<div class="empty">当前没有业务问题记录</div>';
+    }
+    function renderSummary() { var s=state.status||{}; var on=!!s.enabled; var runtime=document.getElementById('runtime'); runtime.textContent=on?'运行中':'已暂停'; runtime.className='stat-value '+(on?'status-on':'status-off'); document.getElementById('toggleBtn').textContent=on?'暂停监控':'启用监控'; document.getElementById('packCount').textContent=state.packs.length; var total=state.packs.reduce(function(n,p){return n+p.totalRules;},0), enabled=state.packs.reduce(function(n,p){return n+p.enabledRules;},0); document.getElementById('ruleCount').textContent=enabled; document.getElementById('ruleNote').textContent='共 '+total+' 条'; document.getElementById('issueCount').textContent=state.records.length; document.getElementById('severityCount').textContent=(s.criticalRecords||0)+' / '+(s.warningRecords||0); }
+    function showLoadError(e) { document.getElementById('offline').style.display='block'; document.getElementById('offline').innerHTML='<strong>无法连接手机 Monitor 服务：</strong> '+esc(e.message); }
+    function loadAll() { if(location.protocol==='file:'){document.getElementById('offline').style.display='block';return;} Promise.all([api('/getAnomalyStatus'),api('/getAnomalyRules'),api('/getAnomalyRecords')]).then(function(values){state.status=values[0].status; state.packs=values[1].rulePacks||[]; state.records=values[2].records||[]; renderSummary();renderRules();renderHistory();document.getElementById('offline').style.display='none';}).catch(showLoadError); }
+    function refreshRuntime() { Promise.all([api('/getAnomalyStatus'),api('/getAnomalyRecords')]).then(function(values){state.status=values[0].status; state.records=values[1].records||[]; renderSummary();renderHistory();document.getElementById('offline').style.display='none';}).catch(showLoadError); }
+    function toggleMonitor(){var next=!(state.status&&state.status.enabled);api('/setAnomalyEnabled?enabled='+next).then(loadAll);}
+    function clearHistory(){if(!confirm('确认清空全部业务问题历史？规则不会被删除。'))return;api('/clearAnomalies').then(loadAll);}
+    function switchTab(name){document.getElementById('rulesPanel').classList.toggle('active',name==='rules');document.getElementById('historyPanel').classList.toggle('active',name==='history');document.getElementById('rulesTab').classList.toggle('active',name==='rules');document.getElementById('historyTab').classList.toggle('active',name==='history');}
+    loadAll(); setInterval(function(){if(document.visibilityState==='visible'&&location.protocol!=='file:')refreshRuntime();},5000);
+</script>
+</body>
+</html>

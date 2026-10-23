@@ -8,6 +8,7 @@ import org.json.JSONObject
 import java.net.URLDecoder
 import java.util.concurrent.CopyOnWriteArrayList
 import com.hkjustar.monitorx.core.FlowWatcher
+import com.hkjustar.monitorx.core.config.RuleDefinition
 import com.hkjustar.monitorx.core.config.RulePackLoader
 import com.hkjustar.monitorx.core.config.toRules
 import java.util.concurrent.ConcurrentHashMap
@@ -50,7 +51,8 @@ object AnomalyManager {
         val name: String,
         val assetPath: String,
         val totalRules: Int,
-        val enabledRules: Int
+        val enabledRules: Int,
+        val rules: List<RuleDefinition>
     )
 
     data class Status(
@@ -127,7 +129,8 @@ object AnomalyManager {
             name = pack.name,
             assetPath = assetPath,
             totalRules = pack.rules.size,
-            enabledRules = pack.rules.count { it.enabled }
+            enabledRules = pack.rules.count { it.enabled },
+            rules = pack.rules
         )
     }
 

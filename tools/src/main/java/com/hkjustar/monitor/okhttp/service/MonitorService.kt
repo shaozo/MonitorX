@@ -50,6 +50,9 @@ abstract class MonitorService {
     @Page("performance_index")
     fun showPerformancePage() = "performance_index.html"
 
+    @Page("business_monitor_index")
+    fun showBusinessMonitorPage() = "business_monitor_index.html"
+
     @Page("mqtt_index")
     fun showMqttPage() = "mqtt_index.html"
 
@@ -132,6 +135,17 @@ abstract class MonitorService {
         return mapOf(
             "status" to manager.getStatus(),
             "rulePacks" to manager.getLoadedRulePacks()
+        )
+    }
+
+    @Get("getAnomalyRules")
+    fun getAnomalyRules(): Map<String, Any> {
+        val packs = com.hkjustar.monitor.okhttp.anomaly.AnomalyManager.getLoadedRulePacks()
+        return mapOf(
+            "totalPacks" to packs.size,
+            "totalRules" to packs.sumOf { it.totalRules },
+            "enabledRules" to packs.sumOf { it.enabledRules },
+            "rulePacks" to packs
         )
     }
 
