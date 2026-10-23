@@ -26,6 +26,14 @@ object HttpFlowEventFactory {
     private val json = Json { ignoreUnknownKeys = true }
 
     fun response(snapshot: HttpEventSnapshot): FlowEvent {
+        return create(snapshot, EventType.HTTP_RESPONSE, includeResponse = true)
+    }
+
+    fun request(snapshot: HttpEventSnapshot): FlowEvent {
+        return create(snapshot, EventType.HTTP_REQUEST, includeResponse = false)
+    }
+
+    private fun create(snapshot: HttpEventSnapshot, eventType: EventType, includeResponse: Boolean): FlowEvent {
         val attributes = linkedMapOf<String, String?>()
         attributes["http.method"] = snapshot.method
         attributes["http.url"] = snapshot.url
@@ -34,14 +42,16 @@ object HttpFlowEventFactory {
         }
         attributes["http.request.headers"] = snapshot.requestHeaders
         attributes["http.request.body"] = snapshot.requestBody
-        attributes["http.response.body"] = snapshot.responseBody
+        if (includeResponse) attributes["http.response.body"] = snapshot.responseBody
         attributes["page.activity"] = snapshot.pageName
         parseParameters(snapshot).forEach { (key, value) -> attributes["http.param.$key"] = value }
-        parseResponse(snapshot.responseBody).forEach { (key, value) ->
-            attributes["http.response.$key"] = value
+        if (includeResponse) {
+            parseResponse(snapshot.responseBody).forEach { (key, value) ->
+                attributes["http.response.$key"] = value
+            }
         }
         return FlowEvent(
-            type = EventType.HTTP_RESPONSE,
+            type = eventType,
             name = attributes["http.path"].orEmpty().ifBlank { snapshot.url },
             attributes = attributes,
             sourceId = snapshot.sourceId

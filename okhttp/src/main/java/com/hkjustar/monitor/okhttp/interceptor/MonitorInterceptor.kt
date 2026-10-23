@@ -44,6 +44,12 @@ class MonitorInterceptor : Interceptor {
         }
 
         monitorData.requestTime = Date().formatData(TIME_LONG)
+        // Emit the request before network I/O. Business-flow rules can therefore distinguish
+        // "the app never notified the server" from "the server call was slow or failed".
+        fillRequestSnapshot(monitorData, request, readRequestBody = true)
+        runCatching {
+            com.hkjustar.monitor.okhttp.anomaly.CoreAnomalyBridge.inspectRequest(monitorData)
+        }
 
         // 在 Call 结束并从全局索引移除前保留本次指标对象的局部引用。
         val callMetrics = com.hkjustar.monitor.okhttp.listener.MonitorEventListener.getMetrics(chain.call())

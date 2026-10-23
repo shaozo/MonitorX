@@ -1,22 +1,23 @@
 package com.hkjustar.monitor.okhttp.ui.im
 
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.hkjustar.monitor.okhttp.R
 import com.hkjustar.monitor.okhttp.adapter.ImMessageListAdapter
 import com.hkjustar.monitor.okhttp.databinding.FragmentMonitorMainBinding
 import com.hkjustar.monitor.okhttp.im.ImMessageCollector
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 class ImMessageFragment : Fragment() {
 
-    private lateinit var binding: FragmentMonitorMainBinding
-    private val handler = Handler(Looper.getMainLooper())
+    private var _binding: FragmentMonitorMainBinding? = null
+    private val binding get() = requireNotNull(_binding)
     private var adapter: ImMessageListAdapter? = null
 
     override fun onCreateView(
@@ -29,12 +30,13 @@ class ImMessageFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        binding = FragmentMonitorMainBinding.bind(view)
+        _binding = FragmentMonitorMainBinding.bind(view)
         binding.swipeRefresh.setOnRefreshListener {
-            handler.postDelayed({
+            viewLifecycleOwner.lifecycleScope.launch {
+                delay(300)
                 binding.swipeRefresh.isRefreshing = false
                 setData()
-            }, 300)
+            }
         }
         initRecyclerView()
         setData()
@@ -51,5 +53,12 @@ class ImMessageFragment : Fragment() {
 
     private fun setData() {
         adapter?.setData(ImMessageCollector.query(limit = 100))
+    }
+
+    override fun onDestroyView() {
+        binding.rvMonitor.adapter = null
+        adapter = null
+        _binding = null
+        super.onDestroyView()
     }
 }

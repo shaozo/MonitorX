@@ -18,6 +18,7 @@ import android.widget.TextView
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import com.hkjustar.monitor.okhttp.MonitorHelper
 import com.hkjustar.monitor.okhttp.runtime.MonitorEnvironment
@@ -49,12 +50,40 @@ object InAppNotifier : AnomalyListener {
         // 1. 发送系统通知（常驻通知栏，即使退出当前页面也可随时下拉回溯）
         sendSystemNotification(record)
 
-        // 2. 在前台页面弹出悬浮高亮横幅（第一现场强视觉提示）
         val appContext = MonitorHelper.context?.applicationContext ?: return
+
+        // 严重级别进行触觉震动反馈，让开发在第一现场瞬间感知
+        if (record.severity.equals("CRITICAL", ignoreCase = true)) {
+            triggerHapticFeedback(appContext)
+        }
+
+        // 2. 在前台页面弹出悬浮高亮横幅（第一现场强视觉提示）
         androidx.core.content.ContextCompat.getMainExecutor(appContext).execute mainThread@{
             val activity = MonitorEnvironment.topActivity() ?: return@mainThread
             if (activity.isFinishing || activity.isDestroyed) return@mainThread
             showTopBanner(activity, record)
+        }
+    }
+
+    private fun triggerHapticFeedback(context: Context) {
+        runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? android.os.VibratorManager
+                vibratorManager?.defaultVibrator?.vibrate(
+                    android.os.VibrationEffect.createOneShot(100L, android.os.VibrationEffect.DEFAULT_AMPLITUDE)
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vibrator?.vibrate(
+                        android.os.VibrationEffect.createOneShot(100L, android.os.VibrationEffect.DEFAULT_AMPLITUDE)
+                    )
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator?.vibrate(100L)
+                }
+            }
         }
     }
 
@@ -146,11 +175,19 @@ object InAppNotifier : AnomalyListener {
      * 前台页面悬浮警告条
      */
     private fun showTopBanner(activity: Activity, record: AnomalyRecord) {
+        val lifecycleOwner = activity as? LifecycleOwner ?: return
+        if (!lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.CREATED)) return
         val decorView = activity.window?.decorView as? ViewGroup ?: return
+
+        val bannerBgColor = when (record.severity.uppercase()) {
+            "CRITICAL" -> Color.parseColor("#D32F2F") // 警示深红
+            "WARNING" -> Color.parseColor("#E65100")  // 醒目深橙
+            else -> Color.parseColor("#1565C0")       // 提示深蓝
+        }
 
         val bannerContainer = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.parseColor("#D32F2F")) // 警示深红
+            setBackgroundColor(bannerBgColor)
             elevation = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 24f, activity.resources.displayMetrics)
             val padH = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 16f, activity.resources.displayMetrics).toInt()
             val padV = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 12f, activity.resources.displayMetrics).toInt()
@@ -190,13 +227,23 @@ object InAppNotifier : AnomalyListener {
             gravity = Gravity.TOP
         }
 
+        val bannerTag = "TAG_MONITOR_ANOMALY_BANNER"
+        decorView.findViewWithTag<android.view.View>(bannerTag)?.let { old ->
+            runCatching { decorView.removeView(old) }
+        }
+        bannerContainer.tag = bannerTag
+
         decorView.addView(bannerContainer, layoutParams)
 
         var isRemoved = false
         val removeBanner = {
             if (!isRemoved) {
                 isRemoved = true
-                runCatching { decorView.removeView(bannerContainer) }
+                runCatching {
+                    if (decorView.findViewWithTag<android.view.View>(bannerTag) === bannerContainer) {
+                        decorView.removeView(bannerContainer)
+                    }
+                }
             }
         }
 
@@ -218,7 +265,7 @@ object InAppNotifier : AnomalyListener {
 
         // The coroutine is cancelled automatically when the Activity is destroyed. Its finally
         // block also removes the injected View, so no delayed callback retains the Activity.
-        (activity as? LifecycleOwner)?.lifecycleScope?.launch {
+        lifecycleOwner.lifecycleScope.launch {
             try {
                 delay(5000L)
             } finally {

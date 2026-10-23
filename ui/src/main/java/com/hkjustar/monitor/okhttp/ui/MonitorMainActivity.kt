@@ -16,8 +16,10 @@ import com.hkjustar.monitor.okhttp.MonitorHelper
 import com.hkjustar.monitor.okhttp.R
 import com.hkjustar.monitor.okhttp.databinding.ActivityMonitorMainBinding
 import com.hkjustar.monitor.okhttp.im.ImMessageCollector
+import com.hkjustar.monitor.okhttp.anomaly.AnomalyManager
 import com.hkjustar.monitor.okhttp.ui.im.ImMessageFragment
 import com.hkjustar.monitor.okhttp.ui.api.ApiDebugFragment
+import com.hkjustar.monitor.okhttp.ui.anomaly.BusinessIssuesFragment
 import com.hkjustar.monitor.okhttp.ui.request.MonitorMainFragment
 import com.hkjustar.monitor.okhttp.ui.sp.SPFileListFragment
 import com.hkjustar.monitor.okhttp.utils.getPhoneWifiIpAddress
@@ -48,6 +50,7 @@ class MonitorMainActivity : AppCompatActivity(), NavigationBarView.OnItemSelecte
             thread {
                 MonitorHelper.deleteAll()
                 ImMessageCollector.clear()
+                AnomalyManager.clearRecords()
             }
         }
         getPhoneWifiIpAddress()?.let {
@@ -69,7 +72,8 @@ class MonitorMainActivity : AppCompatActivity(), NavigationBarView.OnItemSelecte
             MonitorMainFragment(),
             ImMessageFragment(),
             SPFileListFragment(),
-            ApiDebugFragment()
+            ApiDebugFragment(),
+            BusinessIssuesFragment()
         )
         binding.viewPager.orientation = ViewPager2.ORIENTATION_HORIZONTAL
         binding.viewPager.adapter = object : FragmentStateAdapter(this) {
@@ -88,9 +92,13 @@ class MonitorMainActivity : AppCompatActivity(), NavigationBarView.OnItemSelecte
                     1 -> binding.bottomNavigationView.selectedItemId = R.id.navigation_im
                     2 -> binding.bottomNavigationView.selectedItemId = R.id.navigation_sharedPrefs
                     3 -> binding.bottomNavigationView.selectedItemId = R.id.navigation_api_debug
+                    4 -> binding.bottomNavigationView.selectedItemId = R.id.navigation_business_issues
                 }
             }
         })
+        if (intent.hasExtra("EXTRA_ANOMALY_PATH")) {
+            binding.viewPager.setCurrentItem(4, false)
+        }
     }
 
     override fun onNavigationItemSelected(item: MenuItem): Boolean {
@@ -109,6 +117,10 @@ class MonitorMainActivity : AppCompatActivity(), NavigationBarView.OnItemSelecte
             }
             R.id.navigation_api_debug -> {
                 binding.viewPager.currentItem = 3
+                return true
+            }
+            R.id.navigation_business_issues -> {
+                binding.viewPager.currentItem = 4
                 return true
             }
         }

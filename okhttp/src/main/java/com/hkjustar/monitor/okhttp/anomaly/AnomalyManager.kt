@@ -9,6 +9,8 @@ import java.net.URLDecoder
 import java.util.concurrent.CopyOnWriteArrayList
 import com.hkjustar.monitorx.core.FlowWatcher
 import com.hkjustar.monitorx.core.config.RulePackLoader
+import com.hkjustar.monitorx.core.config.toRules
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * 业务与时序暗坑异常监控管理器
@@ -21,6 +23,7 @@ object AnomalyManager {
     private val rules = CopyOnWriteArrayList<AnomalyRule>()
     private val records = CopyOnWriteArrayList<AnomalyRecord>()
     private val listeners = CopyOnWriteArrayList<AnomalyListener>()
+    private val loadedRulePacks = ConcurrentHashMap<String, LoadedRulePack>()
 
     @Volatile
     var isEnabled: Boolean = true
@@ -39,7 +42,40 @@ object AnomalyManager {
     }
 
     fun getAllRecords(): List<AnomalyRecord> {
-        return records.toList()
+        return records.sortedByDescending { it.timestamp }
+    }
+
+    data class LoadedRulePack(
+        val id: String,
+        val name: String,
+        val assetPath: String,
+        val totalRules: Int,
+        val enabledRules: Int
+    )
+
+    data class Status(
+        val enabled: Boolean,
+        val loadedPacks: Int,
+        val activeRules: Int,
+        val totalRecords: Int,
+        val criticalRecords: Int,
+        val warningRecords: Int,
+        val infoRecords: Int
+    )
+
+    fun getLoadedRulePacks(): List<LoadedRulePack> = loadedRulePacks.values.sortedBy { it.assetPath }
+
+    fun getStatus(): Status {
+        val snapshot = records.toList()
+        return Status(
+            enabled = isEnabled && FlowWatcher.enabled,
+            loadedPacks = loadedRulePacks.size,
+            activeRules = loadedRulePacks.values.sumOf { it.enabledRules } + rules.size,
+            totalRecords = snapshot.size,
+            criticalRecords = snapshot.count { it.severity == AnomalySeverity.CRITICAL.name },
+            warningRecords = snapshot.count { it.severity == AnomalySeverity.WARNING.name },
+            infoRecords = snapshot.count { it.severity == AnomalySeverity.INFO.name }
+        )
     }
 
     /**
@@ -82,9 +118,17 @@ object AnomalyManager {
     fun loadRulePack(context: Context, assetPath: String) {
         require(assetPath.isNotBlank()) { "assetPath must not be blank" }
         val content = context.assets.open(assetPath).bufferedReader().use { it.readText() }
-        val rules = RulePackLoader.decodeRules(content)
+        val pack = RulePackLoader.decode(content)
+        val rules = pack.toRules()
         installCoreBridge()
         FlowWatcher.registerAll(rules)
+        loadedRulePacks[pack.id] = LoadedRulePack(
+            id = pack.id,
+            name = pack.name,
+            assetPath = assetPath,
+            totalRules = pack.rules.size,
+            enabledRules = pack.rules.count { it.enabled }
+        )
     }
 
     /**

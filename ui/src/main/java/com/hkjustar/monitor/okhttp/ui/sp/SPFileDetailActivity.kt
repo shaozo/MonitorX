@@ -3,14 +3,15 @@ package com.hkjustar.monitor.okhttp.ui.sp
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.hkjustar.monitor.okhttp.MonitorHelper
 import com.hkjustar.monitor.okhttp.data.SpSubData
 import com.hkjustar.monitor.okhttp.databinding.ActivitySpFileDetailBinding
 import com.hkjustar.monitor.okhttp.ui.dialog.SpModifyDialog
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * <pre>
@@ -34,7 +35,6 @@ class SPFileDetailActivity : AppCompatActivity() {
     }
 
     private lateinit var binding: ActivitySpFileDetailBinding
-    private var handle: Handler = Handler(Looper.getMainLooper())
     private var fileName: String? = null
     var list = listOf<SpSubData>()
     private var adapter: SpFileDetailAdapter? = null
@@ -56,10 +56,11 @@ class SPFileDetailActivity : AppCompatActivity() {
     private fun initView() {
         binding.ivBack.setOnClickListener { finish() }
         binding.swipeRefresh.setOnRefreshListener {
-            handle.postDelayed({
+            lifecycleScope.launch {
+                delay(1000)
                 binding.swipeRefresh.isRefreshing = false
                 initData()
-            }, 1000)
+            }
         }
         binding.tvTitle.text = fileName ?: "详情"
         adapter = SpFileDetailAdapter()

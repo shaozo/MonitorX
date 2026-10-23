@@ -20,4 +20,9 @@
         android:id="@+id/navigation_api_debug"
         android:icon="@mipmap/monitor_icon_tab_network"
         android:title="接口调试" />
+
+    <item
+        android:id="@+id/navigation_business_issues"
+        android:icon="@android:drawable/stat_notify_error"
+        android:title="业务问题" />
 </menu>

@@ -80,6 +80,9 @@ installation.
 
 See [`samples/rules/checkout-rules.json`](samples/rules/checkout-rules.json).
 
+For host-app rule placement, new-user context, payment notification monitoring and history UI,
+see [`BUSINESS_MONITORING.md`](BUSINESS_MONITORING.md).
+
 ## Extraction checklist
 
 1. Move the entire `monitorX` directory into the new repository root.

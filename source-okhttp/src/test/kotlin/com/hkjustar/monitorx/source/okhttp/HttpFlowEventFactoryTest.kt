@@ -1,9 +1,25 @@
 package com.hkjustar.monitorx.source.okhttp
 
+import com.hkjustar.monitorx.core.EventType
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class HttpFlowEventFactoryTest {
+    @Test
+    fun requestEventContainsCorrelationParametersBeforeResponse() {
+        val event = HttpFlowEventFactory.request(
+            HttpEventSnapshot(
+                url = "https://example.test/google/pay/recharge/noticeResult",
+                method = "POST",
+                requestBody = """{"purchase_token":"token-1"}"""
+            )
+        )
+
+        assertEquals(EventType.HTTP_REQUEST, event.type)
+        assertEquals("token-1", event.attributes["http.param.purchase_token"])
+        assertEquals(null, event.attributes["http.response.body"])
+    }
+
     @Test
     fun combinesQueryAndJsonBodyParameters() {
         val event = HttpFlowEventFactory.response(

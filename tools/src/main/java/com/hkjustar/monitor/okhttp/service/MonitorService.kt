@@ -126,6 +126,22 @@ abstract class MonitorService {
         )
     }
 
+    @Get("getAnomalyStatus")
+    fun getAnomalyStatus(): Map<String, Any> {
+        val manager = com.hkjustar.monitor.okhttp.anomaly.AnomalyManager
+        return mapOf(
+            "status" to manager.getStatus(),
+            "rulePacks" to manager.getLoadedRulePacks()
+        )
+    }
+
+    @Get("setAnomalyEnabled")
+    fun setAnomalyEnabled(enabled: Boolean): Boolean {
+        com.hkjustar.monitor.okhttp.anomaly.AnomalyManager.isEnabled = enabled
+        com.hkjustar.monitorx.core.FlowWatcher.enabled = enabled
+        return enabled
+    }
+
     @Get("getNewAnomalies")
     fun getNewAnomalies(): Map<String, Any> {
         val newRecords = com.hkjustar.monitor.okhttp.anomaly.AnomalyManager.getNewAnomalies()

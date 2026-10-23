@@ -1,17 +1,18 @@
 package com.hkjustar.monitor.okhttp.ui.sp
 
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.hkjustar.monitor.okhttp.MonitorHelper
 import com.hkjustar.monitor.okhttp.R
 import com.hkjustar.monitor.okhttp.data.SpData
 import com.hkjustar.monitor.okhttp.databinding.FragmentSpListBinding
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * <pre>
@@ -22,9 +23,9 @@ import com.hkjustar.monitor.okhttp.databinding.FragmentSpListBinding
  */
 class SPFileListFragment : Fragment() {
 
-    private lateinit var binding: FragmentSpListBinding
+    private var _binding: FragmentSpListBinding? = null
+    private val binding get() = requireNotNull(_binding)
     private var adapter: SpFileAdapter? = null
-    private var handle: Handler = Handler(Looper.getMainLooper())
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -36,7 +37,7 @@ class SPFileListFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        binding = FragmentSpListBinding.bind(view)
+        _binding = FragmentSpListBinding.bind(view)
         initView()
         initData()
     }
@@ -48,10 +49,11 @@ class SPFileListFragment : Fragment() {
 
     private fun initView() {
         binding.swipeRefresh.setOnRefreshListener {
-            handle.postDelayed({
+            viewLifecycleOwner.lifecycleScope.launch {
+                delay(1000)
                 binding.swipeRefresh.isRefreshing = false
                 initData()
-            }, 1000)
+            }
         }
         adapter = SpFileAdapter()
         adapter?.onItemClick = {
@@ -61,5 +63,12 @@ class SPFileListFragment : Fragment() {
             it.layoutManager = LinearLayoutManager(context)
             it.adapter = adapter
         }
+    }
+
+    override fun onDestroyView() {
+        binding.recyclerVew.adapter = null
+        adapter = null
+        _binding = null
+        super.onDestroyView()
     }
 }

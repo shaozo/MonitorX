@@ -79,8 +79,13 @@ object RulePackLoader {
         val pack = json.decodeFromString<RulePack>(content)
         require(pack.schemaVersion == 1) { "Unsupported MonitorX rule schema: ${pack.schemaVersion}" }
         require(pack.id.isNotBlank()) { "Rule pack id must not be blank" }
+        require(pack.name.isNotBlank()) { "Rule pack name must not be blank" }
+        require(pack.rules.isNotEmpty()) { "Rule pack ${pack.id} must contain at least one rule" }
         val duplicateIds = pack.rules.groupingBy { it.id }.eachCount().filterValues { it > 1 }.keys
         require(duplicateIds.isEmpty()) { "Duplicate rule ids: ${duplicateIds.joinToString()}" }
+        // Build every rule during validation, including disabled rules. This prevents a malformed
+        // rule from being shipped unnoticed and only failing after it is enabled remotely.
+        pack.rules.forEach { it.toRule() }
         return pack
     }
 
@@ -91,6 +96,9 @@ fun RulePack.toRules(): List<FlowRule> = rules.filter { it.enabled }.map { it.to
 
 private fun RuleDefinition.toRule(): FlowRule {
     require(id.isNotBlank()) { "Rule id must not be blank" }
+    require(name.isNotBlank()) { "$id name must not be blank" }
+    require(message.isNotBlank()) { "$id message must not be blank" }
+    (conditions + contextConditions).forEach { condition -> condition.validate(id) }
     val level = Severity.valueOf(severity.name)
     return when (type) {
         RuleType.POINT -> {
@@ -144,12 +152,34 @@ private fun RuleDefinition.toRule(): FlowRule {
     }
 }
 
+private fun ConditionDefinition.validate(ruleId: String) {
+    require(attribute.isNotBlank()) { "$ruleId condition attribute must not be blank" }
+    when (operator) {
+        ConditionOperator.EQUALS,
+        ConditionOperator.NOT_EQUALS,
+        ConditionOperator.STARTS_WITH,
+        ConditionOperator.NOT_STARTS_WITH,
+        ConditionOperator.MATCHES -> requireNotNull(value) { "$ruleId $operator condition requires value" }
+        ConditionOperator.IN -> require(values.isNotEmpty()) { "$ruleId IN condition requires values" }
+        ConditionOperator.BLANK,
+        ConditionOperator.NOT_BLANK -> Unit
+    }
+    if (operator == ConditionOperator.MATCHES) {
+        runCatching { Regex(value.orEmpty()) }
+            .getOrElse { error("$ruleId has invalid condition regex: $value") }
+    }
+}
+
 private fun MatcherDefinition.toMatcher(ruleId: String): EventMatcher {
     val type = eventType?.let {
         runCatching { EventType.valueOf(it) }.getOrElse { error("$ruleId has invalid eventType: $it") }
     }
-    val compiledName = nameRegex?.let(::Regex)
-    val compiledPath = pathRegex?.let(::Regex)
+    val compiledName = nameRegex?.let { pattern ->
+        runCatching { Regex(pattern) }.getOrElse { error("$ruleId has invalid nameRegex: $pattern") }
+    }
+    val compiledPath = pathRegex?.let { pattern ->
+        runCatching { Regex(pattern) }.getOrElse { error("$ruleId has invalid pathRegex: $pattern") }
+    }
     return { event ->
         (type == null || event.type == type) &&
             (name == null || event.name == name) &&
@@ -187,6 +217,6 @@ private fun ConditionDefinition.matches(actual: String?): Boolean = when (operat
     ConditionOperator.NOT_EQUALS -> actual != value
     ConditionOperator.STARTS_WITH -> actual?.startsWith(value.orEmpty()) == true
     ConditionOperator.NOT_STARTS_WITH -> actual?.startsWith(value.orEmpty()) != true
-    ConditionOperator.MATCHES -> actual?.let { Regex(value.orEmpty()).matches(it) } == true
+    ConditionOperator.MATCHES -> actual?.let { Regex(requireNotNull(value) { "MATCHES requires value" }).matches(it) } == true
     ConditionOperator.IN -> actual in values
 }

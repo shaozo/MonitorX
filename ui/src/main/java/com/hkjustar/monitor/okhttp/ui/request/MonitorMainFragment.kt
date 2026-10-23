@@ -1,13 +1,12 @@
 package com.hkjustar.monitor.okhttp.ui.request
 
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Observer
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.hkjustar.monitor.okhttp.MonitorHelper
 import com.hkjustar.monitor.okhttp.R
@@ -15,6 +14,8 @@ import com.hkjustar.monitor.okhttp.adapter.MonitorListAdapter
 import com.hkjustar.monitor.okhttp.data.MonitorData
 import com.hkjustar.monitor.okhttp.databinding.FragmentMonitorMainBinding
 import com.hkjustar.monitor.okhttp.ui.MonitorDetailActivity
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * <pre>
@@ -25,11 +26,10 @@ import com.hkjustar.monitor.okhttp.ui.MonitorDetailActivity
  */
 class MonitorMainFragment : Fragment() {
 
-    private lateinit var binding: FragmentMonitorMainBinding
+    private var _binding: FragmentMonitorMainBinding? = null
+    private val binding get() = requireNotNull(_binding)
 
     private var adapter: MonitorListAdapter? = null
-
-    private var handle: Handler = Handler(Looper.getMainLooper())
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -41,13 +41,14 @@ class MonitorMainFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        binding = FragmentMonitorMainBinding.bind(view)
+        _binding = FragmentMonitorMainBinding.bind(view)
 
         binding.swipeRefresh.setOnRefreshListener {
-            handle.postDelayed({
+            viewLifecycleOwner.lifecycleScope.launch {
+                delay(1000)
                 binding.swipeRefresh.isRefreshing = false
                 setData()
-            }, 1000)
+            }
         }
 
         initRv()
@@ -71,5 +72,12 @@ class MonitorMainFragment : Fragment() {
 
     private fun gotoMonitorDetail(monitorData: MonitorData) {
         startActivity(MonitorDetailActivity.buildIntent(requireContext(), monitorData))
+    }
+
+    override fun onDestroyView() {
+        binding.rvMonitor.adapter = null
+        adapter = null
+        _binding = null
+        super.onDestroyView()
     }
 }

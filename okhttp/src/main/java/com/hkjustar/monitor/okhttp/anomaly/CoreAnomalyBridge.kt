@@ -28,13 +28,21 @@ internal object CoreAnomalyBridge : ViolationReporter {
         FlowWatcher.emit(data.toFlowEvent())
     }
 
+    fun inspectRequest(data: MonitorData) {
+        install()
+        FlowWatcher.emit(data.toHttpSnapshot().let(HttpFlowEventFactory::request))
+    }
+
     override fun report(violation: Violation) {
         AnomalyManager.record(violation.toAnomalyRecord())
     }
 
     private fun MonitorData.toFlowEvent(): FlowEvent {
-        return HttpFlowEventFactory.response(
-            HttpEventSnapshot(
+        return HttpFlowEventFactory.response(toHttpSnapshot())
+    }
+
+    private fun MonitorData.toHttpSnapshot(): HttpEventSnapshot {
+        return HttpEventSnapshot(
                 url = url.orEmpty(),
                 path = path.orEmpty(),
                 method = method.orEmpty(),
@@ -44,7 +52,6 @@ internal object CoreAnomalyBridge : ViolationReporter {
                 pageName = MonitorEnvironment.currentPageInfo()["activitySimple"]?.toString().orEmpty(),
                 sourceId = id.toString()
             )
-        )
     }
 
     private fun Violation.toAnomalyRecord(): AnomalyRecord {

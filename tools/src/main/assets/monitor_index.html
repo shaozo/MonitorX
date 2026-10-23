@@ -1475,6 +1475,7 @@
     // ══════════════════════════════════════════════════════════════
     var STORAGE_NOTIFIED_KEY = "monitor_notified_anomaly_ids_v1";
     var anomalyRecordsCache = [];
+    var anomalyStatusCache = null;
 
     function getNotifiedAnomalyIds() {
         try {
@@ -1556,7 +1557,7 @@
                 </div>
             </div>
             <div class="anomaly-toast-footer">
-                <button type="button" class="btn-toast-jump" onclick="jumpToAnomalyDetail('${anomaly.id}', '${anomaly.monitorDataId}', '${escapeHtml(anomaly.path || anomaly.url)}')">
+                <button type="button" class="btn-toast-jump" onclick="jumpToAnomalyDetail('${anomaly.id}')">
                     👉 立即跳转查看该请求
                 </button>
                 <button type="button" class="btn-toast-solution" onclick="showAnomalySolutionModal('${anomaly.id}')">
@@ -1569,7 +1570,11 @@
     }
 
     // 点击通知“立即跳转查看该请求”
-    function jumpToAnomalyDetail(anomalyId, monitorDataId, targetPath) {
+    function jumpToAnomalyDetail(anomalyId) {
+        var anomaly = anomalyRecordsCache.find(function (r) { return r.id === anomalyId; });
+        if (!anomaly) return;
+        var monitorDataId = anomaly.monitorDataId;
+        var targetPath = anomaly.path || anomaly.url || "";
         var targetCard = null;
         if (monitorDataId && monitorDataId > 0) {
             targetCard = $("#net_item_" + monitorDataId);
@@ -1618,17 +1623,54 @@
 
     // 历史异常总览弹窗
     function openAnomalyHistoryModal() {
-        $.get("/getAnomalyRecords", function (result) {
+        $.when($.get("/getAnomalyRecords"), $.get("/getAnomalyStatus")).done(function (recordsResult, statusResult) {
+            var result = recordsResult[0];
             var data = typeof result === "string" ? JSON.parse(result) : result;
-            var records = data.records || [];
-            anomalyRecordsCache = records;
-            var listContainer = $("#historyAnomalyList");
-            listContainer.empty();
+            var rawStatus = statusResult[0];
+            anomalyStatusCache = typeof rawStatus === "string" ? JSON.parse(rawStatus) : rawStatus;
+            anomalyRecordsCache = data.records || [];
+            renderAnomalyProductStatus();
+            renderAnomalyHistory();
+            $("#anomalyHistoryModal").fadeIn(150);
+        });
+    }
 
-            if (records.length === 0) {
-                listContainer.html('<div style="text-align:center; padding:30px; color:#999;">🎉 当前无业务与时序异常记录，运行非常健康！</div>');
-            } else {
-                records.forEach(function (r) {
+    function renderAnomalyProductStatus() {
+        var status = anomalyStatusCache && anomalyStatusCache.status ? anomalyStatusCache.status : {};
+        var packs = anomalyStatusCache && anomalyStatusCache.rulePacks ? anomalyStatusCache.rulePacks : [];
+        $("#anomalyRuntimeState").text(status.enabled ? "运行中" : "已暂停")
+            .css("color", status.enabled ? "#238636" : "#d97706");
+        $("#anomalyRuleSummary").text((status.activeRules || 0) + " 条规则 · " + (status.loadedPacks || 0) + " 个规则包");
+        $("#anomalySeveritySummary").text(
+            "严重 " + (status.criticalRecords || 0) + " · 警告 " + (status.warningRecords || 0) + " · 提示 " + (status.infoRecords || 0)
+        );
+        $("#anomalyPackSummary").text(packs.map(function (p) {
+            return p.name + " (" + p.enabledRules + "/" + p.totalRules + ")";
+        }).join("；") || "未加载规则包");
+        $("#toggleAnomalyMonitor").text(status.enabled ? "暂停监控" : "启用监控");
+    }
+
+    function toggleAnomalyMonitor() {
+        var next = !(anomalyStatusCache && anomalyStatusCache.status && anomalyStatusCache.status.enabled);
+        $.get("/setAnomalyEnabled?enabled=" + next, function () { openAnomalyHistoryModal(); });
+    }
+
+    function renderAnomalyHistory() {
+        var severity = $("#anomalySeverityFilter").val() || "ALL";
+        var keyword = ($("#anomalyKeywordFilter").val() || "").toLowerCase().trim();
+        var records = anomalyRecordsCache.filter(function (r) {
+            if (severity !== "ALL" && r.severity !== severity) return false;
+            if (!keyword) return true;
+            return [r.ruleName, r.ruleId, r.path, r.url, r.paramKey, r.alertMessage, r.activityName]
+                .some(function (value) { return String(value || "").toLowerCase().indexOf(keyword) >= 0; });
+        });
+        var listContainer = $("#historyAnomalyList");
+        listContainer.empty();
+
+        if (records.length === 0) {
+            listContainer.html('<div style="text-align:center; padding:30px; color:#999;">🎉 当前筛选条件下无业务问题</div>');
+        } else {
+            records.forEach(function (r) {
                     var itemHtml = `
                     <div style="border:1px solid #fed7d7; border-left:4px solid #e5493a; border-radius:6px; padding:10px 12px; margin-bottom:10px; background:#fff;">
                         <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -1645,7 +1687,7 @@
                             ${escapeHtml(r.alertMessage)}
                         </div>
                         <div style="display:flex; justify-content:flex-end; gap:8px;">
-                            <button type="button" class="btn btn-xs btn-primary" onclick="$('#anomalyHistoryModal').fadeOut(100); jumpToAnomalyDetail('${r.id}', '${r.monitorDataId}', '${escapeHtml(r.path || r.url)}')">
+                            <button type="button" class="btn btn-xs btn-primary" onclick="$('#anomalyHistoryModal').fadeOut(100); jumpToAnomalyDetail('${r.id}')">
                                 👉 查看请求
                             </button>
                             <button type="button" class="btn btn-xs btn-secondary" onclick="showAnomalySolutionModal('${r.id}')">
@@ -1654,10 +1696,8 @@
                         </div>
                     </div>`;
                     listContainer.append(itemHtml);
-                });
-            }
-            $("#anomalyHistoryModal").fadeIn(150);
-        });
+            });
+        }
     }
 </script>
 
@@ -1712,6 +1752,24 @@
             <div style="display:flex; align-items:center; gap:10px;">
                 <button type="button" class="btn btn-danger btn-xs" onclick="$.get('/clearAnomalies', function(){ openAnomalyHistoryModal(); })">清空异常记录</button>
                 <button type="button" style="background:none; border:none; font-size:20px; cursor:pointer;" onclick="$('#anomalyHistoryModal').fadeOut(100)">&times;</button>
+            </div>
+        </div>
+        <div style="padding:12px 20px; background:#f8fafc; border-bottom:1px solid var(--border); font-size:12px;">
+            <div style="display:flex; flex-wrap:wrap; gap:10px 18px; align-items:center;">
+                <strong id="anomalyRuntimeState">加载中</strong>
+                <span id="anomalyRuleSummary"></span>
+                <span id="anomalySeveritySummary"></span>
+                <button id="toggleAnomalyMonitor" type="button" class="btn btn-secondary btn-xs" onclick="toggleAnomalyMonitor()">暂停监控</button>
+            </div>
+            <div id="anomalyPackSummary" style="margin-top:6px; color:#667085;"></div>
+            <div style="display:flex; gap:8px; margin-top:10px;">
+                <select id="anomalySeverityFilter" onchange="renderAnomalyHistory()" style="padding:5px 8px; border:1px solid var(--border); border-radius:4px;">
+                    <option value="ALL">全部级别</option>
+                    <option value="CRITICAL">严重</option>
+                    <option value="WARNING">警告</option>
+                    <option value="INFO">提示</option>
+                </select>
+                <input id="anomalyKeywordFilter" oninput="renderAnomalyHistory()" placeholder="搜索规则、接口、字段或页面" style="flex:1; padding:5px 8px; border:1px solid var(--border); border-radius:4px;">
             </div>
         </div>
         <div id="historyAnomalyList" class="anomaly-modal-body" style="max-height:65vh;"></div>
