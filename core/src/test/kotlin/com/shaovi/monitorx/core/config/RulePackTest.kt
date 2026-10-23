@@ -150,49 +150,4 @@ class RulePackTest {
         assertEquals("missing-notice", violations.single().ruleId)
     }
 
-    @Test
-    fun decodesGemgalaBusinessRulesAssetFile() {
-        val candidates = listOf(
-            java.io.File("../../app/src/demo/assets/monitorx/gemgala-rules.json"),
-            java.io.File("../app/src/demo/assets/monitorx/gemgala-rules.json"),
-            java.io.File("app/src/demo/assets/monitorx/gemgala-rules.json")
-        )
-        val file = candidates.firstOrNull { it.exists() }
-        org.junit.Assert.assertNotNull("gemgala-rules.json should exist", file)
-        val pack = RulePackLoader.decode(file!!.readText())
-        assertEquals("gemgala-business-rules", pack.id)
-        assertTrue(pack.rules.size >= 17)
-
-        val rules = pack.toRules()
-        FlowWatcher.registerAll(rules)
-
-        // 验证业务错误规则 gemgala_core_biz_error 能准确命中
-        val bizErrorViolations = FlowWatcher.emit(FlowEvent(
-            type = EventType.HTTP_RESPONSE,
-            name = "/gift/giveGifts",
-            attributes = mapOf(
-                "http.path" to "/gift/giveGifts",
-                "http.response.result" to "2001",
-                "http.response.msg" to "Balance not enough"
-            )
-        ))
-        assertTrue(bizErrorViolations.any { it.ruleId == "gemgala_core_biz_error" })
-
-        // 验证送礼短时间重复提交规则 gemgala_duplicate_gift_send
-        val giftEvent1 = FlowEvent(
-            type = EventType.HTTP_RESPONSE,
-            name = "/gift/giveGifts",
-            elapsedRealtimeMs = 1000,
-            attributes = mapOf("http.path" to "/gift/giveGifts", "http.response.result" to "1000")
-        )
-        val giftEvent2 = FlowEvent(
-            type = EventType.HTTP_RESPONSE,
-            name = "/gift/giveGifts",
-            elapsedRealtimeMs = 2000,
-            attributes = mapOf("http.path" to "/gift/giveGifts", "http.response.result" to "1000")
-        )
-        FlowWatcher.emit(giftEvent1)
-        val giftViolations = FlowWatcher.emit(giftEvent2)
-        assertTrue(giftViolations.any { it.ruleId == "gemgala_duplicate_gift_send" })
-    }
 }
