@@ -52,6 +52,12 @@
         nav a.active { color: var(--primary); background: var(--primary-light); font-weight: 600; }
 
         .main-area { padding: 16px 20px 32px; display: flex; flex-direction: column; gap: 16px; flex: 1; }
+        .connection-warning {
+            display: none; padding: 12px 16px; border: 1px solid #f0b90b; border-left: 4px solid #f0b90b;
+            border-radius: var(--radius); background: #fffbea; color: #7a5d00; line-height: 1.6;
+            box-shadow: var(--shadow);
+        }
+        .connection-warning code { font-family: var(--font-mono); font-weight: 700; }
 
         /* ── Toolbar Card ── */
         .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
@@ -363,6 +369,12 @@
 </nav>
 
 <div class="main-area">
+    <div id="monitorConnectionWarning" class="connection-warning">
+        <strong>⚠️ 当前是本地文件预览，未连接手机 Monitor 服务。</strong>
+        手机弹出的业务问题不会同步到这里。请在电脑浏览器打开 App Monitor 页面显示的
+        <code>http://手机局域网IP:端口/index</code>，并确保电脑与手机处于同一局域网。
+    </div>
+
     <!-- Toolbar Card -->
     <div class="card toolbar-card">
         <div class="toolbar-group">
@@ -1473,58 +1485,46 @@
     // ══════════════════════════════════════════════════════════════
     // ── 业务与时序暗坑异常监控 (InspectorX) ──
     // ══════════════════════════════════════════════════════════════
-    var STORAGE_NOTIFIED_KEY = "monitor_notified_anomaly_ids_v1";
     var anomalyRecordsCache = [];
     var anomalyStatusCache = null;
+    var anomalyPollInFlight = false;
 
-    function getNotifiedAnomalyIds() {
-        try {
-            var raw = localStorage.getItem(STORAGE_NOTIFIED_KEY);
-            return raw ? JSON.parse(raw) : [];
-        } catch (e) {
-            return [];
-        }
-    }
-
-    function markAnomalyIdNotifiedLocally(id) {
-        try {
-            var ids = getNotifiedAnomalyIds();
-            if (ids.indexOf(id) === -1) {
-                ids.push(id);
-                if (ids.length > 800) ids = ids.slice(ids.length - 600);
-                localStorage.setItem(STORAGE_NOTIFIED_KEY, JSON.stringify(ids));
-            }
-        } catch (e) {}
+    function isMonitorServerPage() {
+        return window.location.protocol === "http:" || window.location.protocol === "https:";
     }
 
     // 检查并提示新异常（第一时间右侧通知栏通知，且每次只提醒新问题）
     function checkNewAnomalies() {
-        $.get("/getAnomalyRecords", function (result) {
-            if (!result) return;
-            var data = typeof result === "string" ? JSON.parse(result) : result;
-            var records = data.records || [];
-            anomalyRecordsCache = records;
+        if (!isMonitorServerPage()) {
+            $("#monitorConnectionWarning").show();
+            $("#navAnomalyCount").text("离线");
+            return;
+        }
+        if (anomalyPollInFlight) return;
+        anomalyPollInFlight = true;
 
-            var totalCount = records.length;
-            $("#navAnomalyCount").text(totalCount);
+        $.get("/getAnomalyRecords")
+            .done(function (result) {
+                if (!result) return;
+                var data = typeof result === "string" ? JSON.parse(result) : result;
+                var records = data.records || [];
+                anomalyRecordsCache = records;
+                $("#navAnomalyCount").text(records.length);
 
-            var notifiedIds = new Set(getNotifiedAnomalyIds());
-            // 筛选出从未通知过的全新异常
-            var newIssues = records.filter(function (r) {
-                return !notifiedIds.has(r.id);
-            });
+                // 后端是通知状态的唯一数据源，避免浏览器 localStorage 残留导致漏弹。
+                var newIssues = records.filter(function (record) { return !record.notifiedWeb; });
+                if (newIssues.length === 0) return;
 
-            if (newIssues.length > 0) {
-                newIssues.forEach(function (anomaly) {
-                    showRightSideAnomalyToast(anomaly);
-                    markAnomalyIdNotifiedLocally(anomaly.id);
-                });
-
-                // 同步标记后端已通知
-                var idsStr = newIssues.map(function (r) { return r.id; }).join(",");
+                newIssues.forEach(showRightSideAnomalyToast);
+                var idsStr = newIssues.map(function (record) { return record.id; }).join(",");
                 $.get("/markAnomaliesNotified?ids=" + encodeURIComponent(idsStr));
-            }
-        });
+            })
+            .fail(function () {
+                $("#navAnomalyCount").text("离线");
+            })
+            .always(function () {
+                anomalyPollInFlight = false;
+            });
     }
 
     // 在右侧通知栏弹出卡片
