@@ -2,11 +2,8 @@ plugins {
     id 'com.android.library'
     id 'kotlin-android'
     id 'kotlin-kapt'
-    id 'maven-publish'
+    id 'com.vanniktech.maven.publish'
 }
-
-group = 'com.shaovi.monitorx'
-version = providers.gradleProperty('monitorx.version').getOrElse('0.1.0-SNAPSHOT')
 
 android {
     namespace = "com.shaovi.monitorx"
@@ -36,11 +33,6 @@ android {
     kotlinOptions {
         jvmTarget = JavaVersion.VERSION_11.toString()
     }
-    publishing {
-        singleVariant('release') {
-            withSourcesJar()
-        }
-    }
 }
 
 dependencies {
@@ -59,15 +51,4 @@ dependencies {
     implementation(libs.androidx.startup.runtime)
 
     implementation "io.github.lygttpod.android-local-service:core:0.0.1"
-}
-
-afterEvaluate {
-    publishing {
-        publications {
-            release(MavenPublication) {
-                from components.release
-                artifactId = 'monitor-okhttp'
-            }
-        }
-    }
 }

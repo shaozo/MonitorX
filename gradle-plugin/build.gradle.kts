@@ -1,12 +1,10 @@
-import java.util.Properties
-
 plugins {
     `kotlin-dsl`
-    `maven-publish`
+    id("com.vanniktech.maven.publish") version "0.37.0"
 }
 
-group = "com.shaovi.monitorx"
-version = providers.gradleProperty("monitorx.version").getOrElse("0.1.0-SNAPSHOT")
+group = providers.gradleProperty("GROUP").get()
+version = providers.gradleProperty("VERSION_NAME").get()
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
@@ -25,45 +23,8 @@ dependencies {
 gradlePlugin {
     plugins {
         register("monitorXPlugin") {
-            id = "com.shaovi.monitorx"
+            id = "io.github.shaozo.monitorx"
             implementationClass = "com.shaovi.monitorx.gradle.MonitorOkHttpPlugin"
-        }
-    }
-}
-
-val deployProps: Properties by lazy {
-    Properties().apply {
-        val candidates = listOf(
-            file("deploy.properties"),
-            file("../deploy.properties"),
-            file("../../deploy.properties")
-        )
-        candidates.firstOrNull { it.exists() }?.inputStream()?.use { load(it) }
-    }
-}
-
-fun findDeployProp(key: String): String? =
-    deployProps.getProperty(key)?.trim()?.removeSurrounding("\"")
-
-publishing {
-    repositories {
-        maven { url = uri(layout.buildDirectory.dir("repo")) }
-        val repositoryUrl = providers.gradleProperty("monitorx.repo.url")
-            .orElse(providers.environmentVariable("MONITORX_REPO_URL"))
-            .orNull ?: findDeployProp("maven.url")
-        if (!repositoryUrl.isNullOrBlank()) {
-            maven {
-                name = "monitorX"
-                url = uri(repositoryUrl)
-                credentials {
-                    username = providers.gradleProperty("monitorx.repo.username")
-                        .orElse(providers.environmentVariable("MONITORX_REPO_USERNAME"))
-                        .orNull ?: findDeployProp("maven.username")
-                    password = providers.gradleProperty("monitorx.repo.password")
-                        .orElse(providers.environmentVariable("MONITORX_REPO_PASSWORD"))
-                        .orNull ?: findDeployProp("maven.password")
-                }
-            }
         }
     }
 }

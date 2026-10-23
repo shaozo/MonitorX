@@ -1,11 +1,8 @@
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
-    `maven-publish`
+    id("com.vanniktech.maven.publish")
 }
-
-group = "com.shaovi.monitorx"
-version = providers.gradleProperty("monitorx.version").getOrElse("0.1.0-SNAPSHOT")
 
 kotlin {
     jvmToolchain(17)
@@ -19,12 +16,3 @@ dependencies {
 }
 
 tasks.test { useJUnit() }
-
-publishing {
-    publications {
-        create<MavenPublication>("release") {
-            from(components["java"])
-            artifactId = "monitor-source-okhttp"
-        }
-    }
-}

@@ -8,7 +8,7 @@
 
 ```kotlin
 plugins {
-    id("com.shaovi.monitorx")
+    id("io.github.shaozo.monitorx")
 }
 
 dependencies {

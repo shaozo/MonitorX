@@ -30,14 +30,12 @@ cd monitorX
 ./gradlew -p gradle-plugin build publishToMavenLocal
 ```
 
-Override the version with `-Pmonitorx.version=1.0.0`. Remote publishing automatically reads
-repository and credentials from `deploy.properties` (e.g. company snapshot repo), or accepts
-`MONITORX_REPO_URL`, `MONITORX_REPO_USERNAME` and `MONITORX_REPO_PASSWORD` overrides.
-
-Publish all MonitorX modules to remote Maven (like snapshot repository):
+The release coordinates are `io.github.shaozo.monitorx:*:0.1.0`. Publishing uses the Central
+Portal token and an in-memory OpenPGP signing key supplied through Gradle environment variables.
+Publish all MonitorX modules to Maven Central, then publish the Gradle plugin build:
 ```bash
-./gradlew :monitorX:publish
-./gradlew -p monitorX/gradle-plugin publish
+./gradlew publishAndReleaseToMavenCentral
+./gradlew -p gradle-plugin publishAndReleaseToMavenCentral
 ```
 
 For a local AAR integration test, publish the complete dependency graph to Maven Local:
@@ -46,19 +44,15 @@ For a local AAR integration test, publish the complete dependency graph to Maven
 ./gradlew :app:compileDemoGoogleDebugKotlin -Pmonitorx.usePublished=true
 ```
 
-Do not commit AAR files to Git history. For shared builds, publish the same Maven artifacts to
-GitHub Packages with `MONITORX_REPO_URL=https://maven.pkg.github.com/OWNER/REPOSITORY`, the GitHub
-user as `MONITORX_REPO_USERNAME`, and a token with package write access as
-`MONITORX_REPO_PASSWORD`. GitHub Releases is suitable only when an AAR is provided as a manual
-download; Maven metadata is preferred because MonitorX contains multiple transitive artifacts.
+Do not commit AAR files, Central credentials, or signing keys to Git history.
 
 ## Consumer integration
 
 ```kotlin
-plugins { id("com.shaovi.monitorx") version "1.0.0" }
+plugins { id("io.github.shaozo.monitorx") version "0.1.0" }
 
 dependencies {
-    debugImplementation("com.shaovi.monitorx:monitor-ui:1.0.0")
+    debugImplementation("io.github.shaozo.monitorx:monitor-ui:0.1.0")
 }
 
 MonitorX {
@@ -110,4 +104,5 @@ see [`BUSINESS_MONITORING.md`](BUSINESS_MONITORING.md).
 5. Publish libraries and the Gradle plugin.
 6. Replace Gemgala project dependencies with Maven coordinates.
 
-All published APIs and Android namespaces use the personal `com.shaovi.monitorx` namespace.
+Published Maven coordinates use `io.github.shaozo.monitorx`. Existing Kotlin/Java package names
+remain `com.shaovi.monitorx` for source and binary compatibility.

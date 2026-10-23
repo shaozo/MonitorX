@@ -1,11 +1,8 @@
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
-    id("maven-publish")
+    id("com.vanniktech.maven.publish")
 }
-
-group = "com.shaovi.monitorx"
-version = providers.gradleProperty("monitorx.version").getOrElse("0.1.0-SNAPSHOT")
 
 android {
     namespace = "com.shaovi.monitorx"
@@ -22,18 +19,6 @@ android {
     }
     kotlinOptions { jvmTarget = JavaVersion.VERSION_11.toString() }
     buildFeatures { viewBinding = true }
-    publishing { singleVariant("release") { withSourcesJar() } }
-}
-
-afterEvaluate {
-    publishing {
-        publications {
-            create<MavenPublication>("release") {
-                from(components["release"])
-                artifactId = "monitor-ui"
-            }
-        }
-    }
 }
 
 dependencies {
