@@ -25,6 +25,7 @@ import java.io.File
 import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 import okhttp3.Interceptor
 import kotlin.runCatching
@@ -121,6 +122,7 @@ object MonitorHelper {
     var isOpenMonitor = true
 
     private var singleThreadExecutor: ExecutorService? = null
+    private val initialized = AtomicBoolean(false)
 
     private fun threadExecutor(action: () -> Unit) {
         if (singleThreadExecutor == null || singleThreadExecutor?.isShutdown == true) {
@@ -130,7 +132,8 @@ object MonitorHelper {
     }
 
     fun init(context: Context) {
-        MonitorHelper.context = context
+        if (!initialized.compareAndSet(false, true)) return
+        MonitorHelper.context = context.applicationContext
         // Rule assets from the app and all feature AARs are merged into this directory.
         // Loading is synchronous so malformed rule packs fail early and never leave monitoring
         // silently half-configured.

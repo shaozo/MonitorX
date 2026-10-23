@@ -37,6 +37,7 @@ android {
 
 dependencies {
 
+    api project(':monitorX:api')
     api project(':monitorX:source-okhttp')
 
     implementation(libs.androidx.core.ktx)
@@ -51,4 +52,5 @@ dependencies {
     implementation(libs.androidx.startup.runtime)
 
     implementation "io.github.lygttpod.android-local-service:core:0.0.1"
+    testImplementation libs.junit4
 }
