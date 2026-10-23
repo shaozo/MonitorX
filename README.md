@@ -114,12 +114,31 @@ Place portable rule packs in `src/main/assets/monitorx/*.json`. Supported rule t
 ./gradlew -p gradle-plugin build publishToMavenLocal
 ```
 
-Maven Central publishing uses a Central Portal token and an in-memory OpenPGP key supplied outside
-the repository:
+Maven Central publishing uses the unified Central Portal. With version 0.37.0 of the publishing
+plugin, `mavenCentralPublishing=true` is the current equivalent of the older
+`SonatypeHost.CENTRAL_PORTAL` DSL. Put credentials in `~/.gradle/gradle.properties`:
+
+```properties
+mavenCentralUsername=<Central Portal token username>
+mavenCentralPassword=<Central Portal token password>
+
+# File-based OpenPGP signing
+signing.keyId=<last 8 characters of the key ID>
+signing.password=<OpenPGP key password>
+signing.secretKeyRingFile=/absolute/path/to/secring.gpg
+
+# Or use an in-memory ASCII-armored private key instead
+# signingInMemoryKey=<ASCII-armored private key>
+# signingInMemoryKeyPassword=<OpenPGP key password>
+```
+
+The same values can be supplied as environment variables by prefixing the property name with
+`ORG_GRADLE_PROJECT_`, for example `ORG_GRADLE_PROJECT_mavenCentralUsername`. Publish all library
+modules, or publish the libraries and Gradle plugin together:
 
 ```bash
-./gradlew publishAndReleaseToMavenCentral
-./gradlew -p gradle-plugin publishAndReleaseToMavenCentral
+./gradlew publishToMavenCentralPortal
+./scripts/publish-all-to-maven-central.sh
 ```
 
 Never commit AAR files, Central credentials, or signing keys. Maven coordinates use
@@ -232,11 +251,31 @@ InspectorX.resetSession(userId)
 ./gradlew -p gradle-plugin build publishToMavenLocal
 ```
 
-发布 Maven Central 时，从仓库外提供 Central Portal Token 和 OpenPGP 私钥：
+发布使用新版 Maven Central 统一门户。当前发布插件 0.37.0 中，
+`mavenCentralPublishing=true` 等价于旧版 `SonatypeHost.CENTRAL_PORTAL` DSL。请在
+`~/.gradle/gradle.properties` 中配置凭据：
+
+```properties
+mavenCentralUsername=<Central Portal Token 用户名>
+mavenCentralPassword=<Central Portal Token 密码>
+
+# 基于文件的 OpenPGP 签名
+signing.keyId=<密钥 ID 最后 8 位>
+signing.password=<OpenPGP 密钥密码>
+signing.secretKeyRingFile=/私钥文件的绝对路径/secring.gpg
+
+# 或使用内存中的 ASCII-armored 私钥
+# signingInMemoryKey=<ASCII-armored 私钥>
+# signingInMemoryKeyPassword=<OpenPGP 密钥密码>
+```
+
+也可以使用添加 `ORG_GRADLE_PROJECT_` 前缀的环境变量，例如
+`ORG_GRADLE_PROJECT_mavenCentralUsername`。仅发布全部库模块，或将库模块和 Gradle 插件
+一次性发布：
 
 ```bash
-./gradlew publishAndReleaseToMavenCentral
-./gradlew -p gradle-plugin publishAndReleaseToMavenCentral
+./gradlew publishToMavenCentralPortal
+./scripts/publish-all-to-maven-central.sh
 ```
 
 不要提交 AAR、Central 凭据或签名私钥。Maven 坐标使用 `io.github.shaozo.monitorx`；为了保持

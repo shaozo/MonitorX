@@ -26,3 +26,11 @@ tasks.register("publishToMavenLocal") {
         subproject.tasks.matching { it.name == "publishToMavenLocal" }
     })
 }
+
+tasks.register("publishToMavenCentralPortal") {
+    group = "publishing"
+    description = "Publishes and releases all MonitorX libraries through the Maven Central Portal."
+    dependsOn(subprojects.map { subproject ->
+        subproject.tasks.matching { it.name == "publishAndReleaseToMavenCentral" }
+    })
+}
