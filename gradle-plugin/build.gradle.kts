@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     `kotlin-dsl`
     `maven-publish`
@@ -29,20 +31,37 @@ gradlePlugin {
     }
 }
 
+val deployProps: Properties by lazy {
+    Properties().apply {
+        val candidates = listOf(
+            file("deploy.properties"),
+            file("../deploy.properties"),
+            file("../../deploy.properties")
+        )
+        candidates.firstOrNull { it.exists() }?.inputStream()?.use { load(it) }
+    }
+}
+
+fun findDeployProp(key: String): String? =
+    deployProps.getProperty(key)?.trim()?.removeSurrounding("\"")
+
 publishing {
     repositories {
         maven { url = uri(layout.buildDirectory.dir("repo")) }
         val repositoryUrl = providers.gradleProperty("monitorx.repo.url")
             .orElse(providers.environmentVariable("MONITORX_REPO_URL"))
-        if (repositoryUrl.isPresent) {
+            .orNull ?: findDeployProp("maven.url")
+        if (!repositoryUrl.isNullOrBlank()) {
             maven {
                 name = "monitorX"
-                url = uri(repositoryUrl.get())
+                url = uri(repositoryUrl)
                 credentials {
                     username = providers.gradleProperty("monitorx.repo.username")
-                        .orElse(providers.environmentVariable("MONITORX_REPO_USERNAME")).orNull
+                        .orElse(providers.environmentVariable("MONITORX_REPO_USERNAME"))
+                        .orNull ?: findDeployProp("maven.username")
                     password = providers.gradleProperty("monitorx.repo.password")
-                        .orElse(providers.environmentVariable("MONITORX_REPO_PASSWORD")).orNull
+                        .orElse(providers.environmentVariable("MONITORX_REPO_PASSWORD"))
+                        .orNull ?: findDeployProp("maven.password")
                 }
             }
         }

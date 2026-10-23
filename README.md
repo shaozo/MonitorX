@@ -30,20 +30,19 @@ cd monitorX
 ./gradlew -p gradle-plugin build publishToMavenLocal
 ```
 
-Override the version with `-Pmonitorx.version=1.0.0`. Plugin remote publishing accepts
-`MONITORX_REPO_URL`, `MONITORX_REPO_USERNAME` and `MONITORX_REPO_PASSWORD`; credentials are never
-stored in source control.
+Override the version with `-Pmonitorx.version=1.0.0`. Remote publishing automatically reads
+repository and credentials from `deploy.properties` (e.g. company snapshot repo), or accepts
+`MONITORX_REPO_URL`, `MONITORX_REPO_USERNAME` and `MONITORX_REPO_PASSWORD` overrides.
 
-For a local AAR integration test, publish the complete dependency graph to Maven Local and let the
-host consume the generated AARs through their Maven metadata:
-
+Publish all MonitorX modules to remote Maven (like snapshot repository):
 ```bash
-./gradlew :monitorX:core:publishToMavenLocal \
-  :monitorX:source-okhttp:publishToMavenLocal \
-  :monitorX:okhttp:publishToMavenLocal \
-  :monitorX:runtime-android:publishToMavenLocal \
-  :monitorX:tools:publishToMavenLocal \
-  :monitorX:ui:publishToMavenLocal
+./gradlew :monitorX:publish
+./gradlew -p monitorX/gradle-plugin publish
+```
+
+For a local AAR integration test, publish the complete dependency graph to Maven Local:
+```bash
+./gradlew :monitorX:publishToMavenLocal
 ./gradlew :app:compileDemoGoogleDebugKotlin -Pmonitorx.usePublished=true
 ```
 
