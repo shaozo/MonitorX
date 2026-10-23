@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.hkjustar.monitorx"
-version = "0.1.0-SNAPSHOT"
+version = providers.gradleProperty("monitorx.version").getOrElse("0.1.0-SNAPSHOT")
 
 kotlin {
     jvmToolchain(17)

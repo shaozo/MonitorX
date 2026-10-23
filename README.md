@@ -34,6 +34,25 @@ Override the version with `-Pmonitorx.version=1.0.0`. Plugin remote publishing a
 `MONITORX_REPO_URL`, `MONITORX_REPO_USERNAME` and `MONITORX_REPO_PASSWORD`; credentials are never
 stored in source control.
 
+For a local AAR integration test, publish the complete dependency graph to Maven Local and let the
+host consume the generated AARs through their Maven metadata:
+
+```bash
+./gradlew :monitorX:core:publishToMavenLocal \
+  :monitorX:source-okhttp:publishToMavenLocal \
+  :monitorX:okhttp:publishToMavenLocal \
+  :monitorX:runtime-android:publishToMavenLocal \
+  :monitorX:tools:publishToMavenLocal \
+  :monitorX:ui:publishToMavenLocal
+./gradlew :app:compileDemoGoogleDebugKotlin -Pmonitorx.usePublished=true
+```
+
+Do not commit AAR files to Git history. For shared builds, publish the same Maven artifacts to
+GitHub Packages with `MONITORX_REPO_URL=https://maven.pkg.github.com/OWNER/REPOSITORY`, the GitHub
+user as `MONITORX_REPO_USERNAME`, and a token with package write access as
+`MONITORX_REPO_PASSWORD`. GitHub Releases is suitable only when an AAR is provided as a manual
+download; Maven metadata is preferred because MonitorX contains multiple transitive artifacts.
+
 ## Consumer integration
 
 ```kotlin
