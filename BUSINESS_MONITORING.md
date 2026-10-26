@@ -1,23 +1,52 @@
 # MonitorX 业务问题监控使用指南
 
-本文面向接入业务和维护规则的开发者，说明业务规则放置位置、新用户判断、支付链路监控、历史问题查看和规则扩展方式。
+本文面向接入业务和维护规则的开发者，说明业务规则放置位置、上下文管理、业务链路监控、历史问题查看和规则扩展方式。
 
-## 1. 代码边界
+## 1. 代码边界与设计原则
 
-MonitorX 是通用组件，只负责：
+MonitorX / InspectorX 是场景中立的诊断与规则引擎，核心职责包括：
 
-- 将 HTTP 请求和响应转换成标准事件；
-- 执行 `POINT`、`RATE`、`FUNNEL` 等通用规则；
-- 保存并展示命中记录；
-- 提供应用内通知、Android 历史页和 PC 控制台。
+- 将 HTTP 请求和响应自动转换为标准流事件；
+- 执行 `POINT`、`RATE`、`FUNNEL`、`DEPENDENCY`、`FORBIDDEN_BEFORE` 等通用时序与约束规则；
+- 保存并展示命中记录，提供应用内通知、Android 历史页与 PC Web 控制台；
+- **场景中立**：SDK 源码中不包含任何具体业务语义（如特定业务接口、支付订单、商品字段等），所有业务差异均由配置文件驱动，业务代码按需插桩。
 
-具体业务规则必须放在业务工程的 assets 中，不能写入 MonitorX 组件源码。例如 Gemgala 的规则位于：
+具体业务规则必须放在业务宿主工程的 assets 中，例如：
 
 ```text
-app/src/demo/assets/monitorx/gemgala-rules.json
+app/src/main/assets/monitorx/business-rules.json
 ```
 
-应用启动时，MonitorX 会扫描合并后的 `assets/monitorx/*.json`，按文件名稳定排序并自动加载。新增业务模块时，可以在该模块自己的 `src/<variant>/assets/monitorx/` 下增加规则包。
+应用启动时，MonitorX 会扫描合并后的 `assets/monitorx/*.json`，按文件名稳定排序并自动加载。多模块架构下，各业务子模块可在各自的 `src/<variant>/assets/monitorx/` 下提供模块级规则包。
+
+业务监控默认采用自动模式：存在至少一条启用规则时开启，没有规则文件时关闭。引用端可以通过
+代码动态控制：
+
+```kotlin
+MonitorX.setBusinessMonitoringEnabled(false)
+```
+
+也可以在宿主的 `src/<variant>/assets/monitor.properties` 中静态配置：
+
+```properties
+monitor.businessMonitoringEnabled=false
+```
+
+通过网页“启用监控/暂停监控”切换时，手机通知、Android 历史记录和网页记录使用同一个状态，
+不会再出现网页已暂停但手机仍产生告警的情况。规则文件应交给自动扫描加载；不要再额外调用
+`InspectorX.installRulePack` 重复安装，否则网页无法可靠展示规则包来源信息。
+
+默认规则来源是 `assets/monitorx/*.json`。宿主需要指定其他规则时，可调用
+`MonitorX.loadBusinessRulePacks(context, assetPaths)` 或
+`MonitorX.loadBusinessRuleDirectory(context, assetDirectory)`；手动指定会替换默认扫描结果，优先级更高。
+静态配置也支持：
+
+```properties
+# 明确文件列表优先于目录；多个文件使用逗号分隔
+monitor.businessRuleAssets=business/login.json,business/payment.json
+# 未配置文件列表时可指定目录
+monitor.businessRuleDirectory=business/rules
+```
 
 ## 2. 查看监控结果
 
@@ -30,7 +59,7 @@ app/src/demo/assets/monitorx/gemgala-rules.json
 - 发生时间、所在 Activity、请求路径、现场值和修复建议；
 - 下拉刷新。
 
-点击系统通知或页面顶部告警条，会直接打开 Monitor 的“业务问题”页。Monitor 首页的“清空”会同时清理网络、IM 和业务问题历史。
+InspectorX 检测到问题后只发送系统通知，不会向宿主 Activity 注入告警 View，因此不会遮挡或改变业务测试页面。点击系统通知会直接打开 Monitor 的“业务问题”页。Monitor 首页的“清空”会同时清理网络、IM 和业务问题历史。
 
 ### PC 端
 
@@ -38,134 +67,158 @@ app/src/demo/assets/monitorx/gemgala-rules.json
 
 必须通过 App Monitor 页面展示的 HTTP 地址打开控制台，例如 `http://192.168.1.20:9527/business_monitor_index`，并确保手机和电脑处于同一局域网。直接通过 `file://` 打开 HTML 只能预览静态页面，无法访问手机上的规则与异常记录接口；页面会明确提示当前处于离线预览状态。
 
-## 3. 新用户判断
+## 3. 上下文状态与标记检测
 
-“新用户”应由可信的业务响应或登录态得出，不能用页面是否第一次打开、本地安装时间等 UI 状态猜测。
+### 3.1 检查单次接口请求/响应字段（无需代码插桩）
 
-### 3.1 只检查当前接口响应
+HTTP source 会将请求参数展平为 `http.param.<key>`，响应 JSON 递归展平为 `http.response.<path>`。
 
-`getUserSignInRecord` 的 `info.isNewUser` 和 `info.yd_device_id` 会被 HTTP source 展平为：
-
-```text
-http.response.info.isNewUser
-http.response.info.yd_device_id
-```
-
-当前 Gemgala 规则只在 `isNewUser == 1` 时检查响应中的 `yd_device_id`：
+例如，检测“新用户签到响应中必须下发设备绑定标识”：
 
 ```json
 {
-  "id": "gemgala_new_user_signin_response_device_id_missing",
+  "id": "new_user_signin_device_id_missing",
+  "name": "新用户签到未返回设备标识",
   "type": "POINT",
+  "severity": "WARNING",
   "matcher": {
     "eventType": "HTTP_RESPONSE",
-    "pathRegex": ".*/game/getUserSignInRecord.*"
+    "pathRegex": ".*/user/getSignInRecord.*"
   },
   "conditionMode": "ALL",
   "conditions": [
     { "attribute": "http.response.info.isNewUser", "operator": "EQUALS", "value": "1" },
-    { "attribute": "http.response.info.yd_device_id", "operator": "BLANK" }
-  ]
+    { "attribute": "http.response.info.deviceId", "operator": "BLANK" }
+  ],
+  "message": "新用户签到响应缺少关键 deviceId 字段。",
+  "solution": "请服务端排查新用户签到下发分支是否遗漏设备标识。"
 }
 ```
 
-这种方式不需要写 Kotlin 接入代码，适合“判断字段和被检查字段在同一个响应中”的场景。
+这种方式完全由配置文件驱动，无需在宿主业务代码中添加任何监控插桩。
 
-### 3.2 在后续业务链路中持续使用新用户状态
+### 3.2 跨接口链路的会话上下文（Session Context）
 
-如果登录或签到响应确认了用户类型，而后续多个接口都要基于该状态检查，应写入 InspectorX 会话上下文：
+当某个状态（如用户身份、是否为新用户、AB 测试分组等）需要在后续多个接口的监控规则中持续生效时，可在业务登录态确立后写入上下文：
 
 ```kotlin
-InspectorX.setContext("user.isNew", isNewUser.toString())
-InspectorX.setContext("user.id", userId.toString())
+// 推荐通过轻量级的 MonitorX API 写入，Release 环境下自动 safe no-op
+MonitorX.setContext("user.isNew", isNewUser.toString())
+MonitorX.setContext("user.id", userId.toString())
 ```
 
-规则通过 `contextConditions` 限定只对新用户执行：
+在 JSON 规则中通过 `contextConditions` 约束：
 
 ```json
 {
   "id": "new_user_reward_missing",
   "name": "新用户奖励字段缺失",
   "type": "POINT",
-  "message": "新用户奖励接口没有返回奖励标识。",
+  "severity": "CRITICAL",
   "matcher": {
     "eventType": "HTTP_RESPONSE",
-    "pathRegex": ".*/newUser/reward.*"
+    "pathRegex": ".*/reward/claim.*"
   },
   "contextConditions": [
     { "attribute": "user.isNew", "operator": "EQUALS", "value": "true" }
   ],
   "conditions": [
-    { "attribute": "http.response.info.rewardId", "operator": "BLANK" }
-  ]
+    { "attribute": "http.response.rewardId", "operator": "BLANK" }
+  ],
+  "message": "新用户领取奖励响应未包含奖励标识。"
 }
 ```
 
-账号切换、退出登录或重新建立登录会话时必须重置上下文，避免上一个用户的状态污染下一个用户：
+**账号切换与清理**：
+账号切换或退出登录时，必须重置上下文以避免污染后续用户状态：
 
 ```kotlin
-InspectorX.resetSession(userId.toString())
+// 登录成功时建立新会话并绑定上下文
+MonitorX.resetSession(userId.toString())
+MonitorX.setContext("user.isNew", "true")
+
+// 退出登录时重置
+MonitorX.resetSession()
 ```
 
-推荐顺序是：登录成功 → `resetSession(userId)` → 写入 `user.isNew` 等上下文。退出登录时调用无参数的 `resetSession()`。
+## 4. 业务链路与时序漏斗监控（以支付/验单链路为例）
 
-## 4. 支付链路监控
+针对跨事件的时序漏斗（如“客户端支付成功后必须在限定时间内通知服务端验单”），InspectorX 采用**通用事件插桩 + 规则配置关联**的模式，SDK 不绑定任何特定业务 API。
 
-Gemgala 在 Google Play 返回 `PURCHASED` 后，以 `purchaseToken` 开始一次支付验单监控：
+### 4.1 业务端插桩
+
+在业务生命周期关键节点，只需调用通用 `emit` 打点：
 
 ```kotlin
-InspectorXAndroid.watchPaymentServerNotification(
-    purchaseToken = purchase.purchaseToken,
-    productId = productId
+// 在 Google Play / 微信 / 支付宝等支付成功回调处插桩
+MonitorX.emit(
+    name = "PAYMENT_SUCCEEDED",
+    attributes = mapOf(
+        "order_id" to purchase.orderId,
+        "product_id" to productId
+    )
 )
 ```
 
-当前 Demo 已通过 `GooglePayRecoveryManager.PurchaseObservedListener` 自动接入，不需要各支付页面重复调用。
+> **提示**：若在 Release 构建中只引入了 `monitor-api`，上述 `MonitorX.emit` 为安全空实现，零性能损耗、零依赖。
 
-完整链路如下：
+旧版 `InspectorXAndroid.watchPaymentServerNotification(...)` 仍保留兼容，但已标记废弃。
+新接入应使用 `MonitorX.emit(...)` 配合规则包显式描述成功、服务端通知和超时节点；需要继续
+沿用旧 watchdog 行为的宿主可在迁移完成前继续调用旧方法。
 
-```text
-Google Play PURCHASED
-        ↓
-PAYMENT_SUCCEEDED（以 purchaseToken 关联）
-        ↓ 最长 15 秒
-HTTP_REQUEST /google/pay/recharge/noticeResult
+### 4.2 规则配置定义（JSON 驱动）
+
+在 assets 的 JSON 规则包中定义 `FUNNEL` 漏斗规则：
+
+```json
+{
+  "id": "payment_server_notice_missing",
+  "name": "支付后缺少服务端验单",
+  "type": "FUNNEL",
+  "severity": "CRITICAL",
+  "start": { "eventType": "CUSTOM", "name": "PAYMENT_SUCCEEDED" },
+  "completion": { "eventType": "HTTP_REQUEST", "pathRegex": ".*/pay/noticeResult.*" },
+  "windowMs": 15000,
+  "correlationAttribute": "order_id",
+  "message": "支付成功后 15 秒内未向服务端发起验单请求。",
+  "solution": "请检查客户端支付回调中向后端发起 noticeResult 接口的时机与网络状态。"
+}
 ```
 
-- 15 秒内完全没有发起 `noticeResult`：命中 `gemgala_payment_server_notice_missing`，级别为 `CRITICAL`。
-- 同一 `purchaseToken` 在 30 秒内重复发起验单：命中 `gemgala_payment_notice_duplicate`。
-- 完成点使用 `HTTP_REQUEST` 而不是 `HTTP_RESPONSE`，因此服务端响应慢或返回错误不会被误判为“客户端没有通知服务端”。响应错误由业务错误规则单独处理。
-- 订阅订单当前由原订阅链路处理，不进入金币充值补单监控。
+- **关联字段跟随配置**：通过 `correlationAttribute` 将自定义事件中的 `order_id` 与接口请求中的 `order_id` 自动关联，多个并发订单不会产生串扰。
+- **完成点推荐使用 `HTTP_REQUEST`**：关注客户端“是否发起请求”，避免服务端响应慢或偶发 500 导致误报。服务端响应异常可由单独的 `HTTP_RESPONSE` 规则检测。
 
 ## 5. 规则类型选择
 
 | 类型 | 适用场景 | 示例 |
 |---|---|---|
-| `POINT` | 单次事件的字段非法或缺失 | 经纬度为 `99999`、设备指纹为空 |
-| `RATE` | 短时间重复调用 | 重复提现、重复送礼、Token 刷新风暴 |
-| `FUNNEL` | A 发生后限定时间内必须发生 B | 支付成功后必须发起服务端验单 |
-| `DEPENDENCY` | B 发生前必须先发生 A | 进入核心业务前必须完成初始化 |
-| `FORBIDDEN_BEFORE` | A 发生前禁止出现 B | 登录完成前禁止执行用户态操作 |
+| `POINT` | 单次事件的字段非法或缺失 | 经纬度异常（99999）、设备指纹为空、状态码不匹配 |
+| `RATE` | 短时间内高频重复调用 | 重复提现、重复送礼、Token 刷新风暴 |
+| `FUNNEL` | A 事件发生后限定时间内必须发生 B 事件 | 支付完成后必须发起服务端验单、点击提现后必须发起网络调用 |
+| `DEPENDENCY` | B 事件发生前必须先发生 A 事件 | 进入核心业务前必须完成 SDK 初始化 |
+| `FORBIDDEN_BEFORE` | A 事件发生前禁止出现 B 事件 | 登录完成前禁止执行用户态网络请求 |
 
 HTTP 参数统一使用 `http.param.<字段名>`；响应 JSON 会递归展平为 `http.response.<路径>`。常用事件类型为 `HTTP_REQUEST`、`HTTP_RESPONSE` 和 `CUSTOM`。
 
 ## 6. 新增或修改规则
 
-1. 在业务模块的 `assets/monitorx/*.json` 中修改，保持规则 ID 全局稳定。
-2. 为规则提供明确的 `message` 和可执行的 `solution`。
-3. URL 正则尽量限定到真实业务路径，避免使用过宽的 `.*` 产生误报。
-4. 涉及订单或用户时，优先设置 `correlationAttribute`，避免并发链路串联。
-5. 本地运行：
+1. 在业务模块的 `assets/monitorx/*.json` 中新增或修改，保持规则 ID 全局唯一且稳定。
+2. 为规则提供明确的 `message` 和具有可操作性的 `solution`。
+3. URL 正则尽量限定到具体业务路径，避免使用宽泛的 `.*` 引发误报。
+4. 涉及订单、会话或用户维度时，优先设置 `correlationAttribute`。
+5. 本地验证与构建：
 
 ```bash
-cd monitorX
-ANDROID_HOME=/path/to/android-sdk ./gradlew test assemble
+./gradlew test
 ```
 
-规则包采用严格校验：未知字段、重复 ID、非法正则、缺少必填值以及格式错误的禁用规则都会在加载时失败，防止问题配置静默上线。
+规则包在加载时会执行严格校验：未知字段、重复 ID、非法正则或缺少必填项均会触发明确报错，杜绝格式错误上线。
 
-## 7. 当前 Gemgala 覆盖范围
+## 7. 典型场景覆盖参考
 
-当前规则覆盖定位参数、易盾设备指纹、新用户签到、重复签到、提现、奖励领取、Token 登录风暴、支付验单缺失与重复验单、核心业务错误、重复送礼、重复下注、非法充值/提现金额、未登录房间操作和 IM 同步风暴。
+在实际项目中，通过组合 JSON 规则与少量业务通用打点，可以轻松覆盖：
 
-这些规则均属于 Gemgala 业务配置；抽离 MonitorX 到其他项目时不会自动携带 Gemgala 规则。
+- **基础质量**：网络请求公共参数校验、设备指纹非空、基础配置合法性；
+- **时序与状态**：未登录态禁止发起业务请求、SDK 初始化依赖关系；
+- **频控与风控**：按钮防重复点击/提交、Token 刷新风暴、短时间内重复发起敏感接口；
+- **关键链路闭环**：支付充值验单漏斗、关键功能点击到网络发起的闭环追踪。

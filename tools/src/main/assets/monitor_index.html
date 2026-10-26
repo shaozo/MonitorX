@@ -1623,6 +1623,19 @@
         return window.location.protocol === "http:" || window.location.protocol === "https:";
     }
 
+    function unwrapAnomalyPayload(res) {
+        if (!res) return {};
+        var obj = res;
+        if (typeof res === "string") {
+            try {
+                obj = JSON.parse(res);
+            } catch (e) {
+                return {};
+            }
+        }
+        return (obj && typeof obj === "object" && ("data" in obj)) ? (obj.data || {}) : obj;
+    }
+
     // 检查并提示新异常（第一时间右侧通知栏通知，且每次只提醒新问题）
     function checkNewAnomalies() {
         if (!isMonitorServerPage()) {
@@ -1636,7 +1649,7 @@
         $.get("/getAnomalyRecords")
             .done(function (result) {
                 if (!result) return;
-                var data = typeof result === "string" ? JSON.parse(result) : result;
+                var data = unwrapAnomalyPayload(result);
                 var records = data.records || [];
                 anomalyRecordsCache = records;
                 $("#navAnomalyCount").text(records.length);
@@ -1754,10 +1767,9 @@
     // 历史异常总览弹窗
     function openAnomalyHistoryModal() {
         $.when($.get("/getAnomalyRecords"), $.get("/getAnomalyStatus")).done(function (recordsResult, statusResult) {
-            var result = recordsResult[0];
-            var data = typeof result === "string" ? JSON.parse(result) : result;
-            var rawStatus = statusResult[0];
-            anomalyStatusCache = typeof rawStatus === "string" ? JSON.parse(rawStatus) : rawStatus;
+            var data = unwrapAnomalyPayload(recordsResult[0]);
+            var statusData = unwrapAnomalyPayload(statusResult[0]);
+            anomalyStatusCache = statusData;
             anomalyRecordsCache = data.records || [];
             renderAnomalyProductStatus();
             renderAnomalyHistory();
@@ -1766,7 +1778,7 @@
     }
 
     function renderAnomalyProductStatus() {
-        var status = anomalyStatusCache && anomalyStatusCache.status ? anomalyStatusCache.status : {};
+        var status = (anomalyStatusCache && anomalyStatusCache.status) ? anomalyStatusCache.status : (anomalyStatusCache || {});
         var packs = anomalyStatusCache && anomalyStatusCache.rulePacks ? anomalyStatusCache.rulePacks : [];
         $("#anomalyRuntimeState").text(status.enabled ? "运行中" : "已暂停")
             .css("color", status.enabled ? "#238636" : "#d97706");
@@ -1781,7 +1793,8 @@
     }
 
     function toggleAnomalyMonitor() {
-        var next = !(anomalyStatusCache && anomalyStatusCache.status && anomalyStatusCache.status.enabled);
+        var status = (anomalyStatusCache && anomalyStatusCache.status) ? anomalyStatusCache.status : (anomalyStatusCache || {});
+        var next = !(status && status.enabled);
         $.get("/setAnomalyEnabled?enabled=" + next, function () { openAnomalyHistoryModal(); });
     }
 

@@ -59,9 +59,9 @@ class ApiDebugFragment : Fragment() {
 
     private fun sendRequest() {
         if (currentCall != null) return
-        val executor = ApiDebugBridge.executor
+        val executor = ApiDebugBridge.getEffectiveExecutor()
         if (executor == null) {
-            showError("业务请求执行器尚未初始化")
+            showError("业务请求执行器尚未初始化，请发起一次网络请求或配置 ApiDebugBridge.executor")
             return
         }
         val request = runCatching { buildRequest(executor.baseUrl) }.getOrElse {

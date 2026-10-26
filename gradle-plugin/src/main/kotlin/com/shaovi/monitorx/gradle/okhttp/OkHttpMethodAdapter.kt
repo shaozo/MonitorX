@@ -27,4 +27,19 @@ class OkHttpMethodAdapter(methodVisitor: MethodVisitor?, access: Int, name: Stri
             )
         }
     }
+
+    override fun onMethodExit(opcode: Int) {
+        if (opcode == ARETURN) {
+            // Keep the returned client on the operand stack while handing a copy to MonitorX.
+            mv.visitInsn(DUP)
+            mv.visitMethodInsn(
+                INVOKESTATIC,
+                "com/shaovi/monitorx/MonitorHelper",
+                "captureBuiltClient",
+                "(Lokhttp3/OkHttpClient;)V",
+                false
+            )
+        }
+        super.onMethodExit(opcode)
+    }
 }

@@ -112,6 +112,36 @@ object MonitorHelper {
                 interceptors.addAll(insertIndex, hookInterceptors)
             }
         }
+
+        // build 返回后再捕获 client，避免在 build 钩子内递归 build 并重复包装 EventListener。
+        val candidatePriority = if (anchorIndex >= 0) 2 else 1
+        captureCurrentBuild.set(if (builder != null && candidatePriority > capturedClientPriority) candidatePriority else 0)
+    }
+
+    private val captureCurrentBuild = object : ThreadLocal<Int>() {
+        override fun initialValue(): Int = 0
+    }
+    @Volatile
+    private var capturedClientPriority = 0
+
+    /** Called by the build() exit hook with the fully constructed host client. */
+    @JvmStatic
+    @Synchronized
+    fun captureBuiltClient(client: okhttp3.OkHttpClient) {
+        val candidatePriority = captureCurrentBuild.get() ?: 0
+        captureCurrentBuild.remove()
+        if (candidatePriority <= capturedClientPriority) return
+
+        val registered = runCatching {
+            val bridgeClass = Class.forName("com.shaovi.monitorx.api.ApiDebugBridge")
+            val registerMethod = bridgeClass.getMethod(
+                "registerAutoClient",
+                okhttp3.OkHttpClient::class.java,
+                String::class.java
+            )
+            registerMethod.invoke(bridgeClass.getField("INSTANCE").get(null), client, "")
+        }.isSuccess
+        if (registered) capturedClientPriority = candidatePriority
     }
 
     var whiteContentTypes: String? = null
@@ -134,12 +164,27 @@ object MonitorHelper {
     fun init(context: Context) {
         if (!initialized.compareAndSet(false, true)) return
         MonitorHelper.context = context.applicationContext
+        val propertiesData = MonitorProperties().paramsProperties()
+        com.shaovi.monitorx.anomaly.AnomalyManager.configureEnabled(
+            propertiesData?.businessMonitoringEnabled
+        )
         // Rule assets from the app and all feature AARs are merged into this directory.
         // Loading is synchronous so malformed rule packs fail early and never leave monitoring
         // silently half-configured.
-        com.shaovi.monitorx.anomaly.AnomalyManager.loadRulePacks(context.applicationContext)
+        when {
+            !propertiesData?.businessRuleAssets.isNullOrEmpty() ->
+                com.shaovi.monitorx.anomaly.AnomalyManager.loadManualRulePacks(
+                    context.applicationContext,
+                    propertiesData!!.businessRuleAssets
+                )
+            !propertiesData?.businessRuleDirectory.isNullOrBlank() ->
+                com.shaovi.monitorx.anomaly.AnomalyManager.loadManualRuleDirectory(
+                    context.applicationContext,
+                    propertiesData!!.businessRuleDirectory!!
+                )
+            else -> com.shaovi.monitorx.anomaly.AnomalyManager.loadRulePacks(context.applicationContext)
+        }
         thread {
-            val propertiesData = MonitorProperties().paramsProperties()
             val dbName: String = propertiesData?.dbName ?: "monitor_room_db"
             val contentTypes = propertiesData?.whiteContentTypes
             whiteContentTypes = if (contentTypes.isNullOrBlank()) defaultContentTypes else contentTypes

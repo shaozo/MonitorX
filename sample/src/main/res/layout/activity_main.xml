@@ -236,7 +236,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
-                        android:text="触发时序违规事件，体验前台悬浮高亮 Banner 与通知栏推送"
+                        android:text="触发时序违规事件，通过系统通知栏与 Monitor 业务问题页查看"
                         android:textColor="?attr/colorOnSurfaceVariant"
                         android:textSize="12sp" />
 
@@ -274,7 +274,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="44dp"
                         android:layout_marginTop="8dp"
-                        android:backgroundTint="@color/monitor_status_error"
+                        android:backgroundTint="@color/sample_status_error"
                         android:text="一键触发【未登录直接结算】异常告警"
                         android:textSize="13sp"
                         app:cornerRadius="10dp" />

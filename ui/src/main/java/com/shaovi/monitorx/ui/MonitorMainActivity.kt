@@ -178,7 +178,7 @@ class MonitorMainActivity : AppCompatActivity(), NavigationBarView.OnItemSelecte
             }
         })
 
-        // 若从悬浮告警通知条跳转，直接切到“异常”页面
+        // 从系统异常通知跳转时，直接切到“业务问题”页面。
         if (intent.hasExtra("EXTRA_ANOMALY_PATH")) {
             binding.viewPager.setCurrentItem(1, false)
         }

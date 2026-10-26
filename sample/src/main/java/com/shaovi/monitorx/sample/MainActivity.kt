@@ -187,7 +187,7 @@ class MainActivity : AppCompatActivity() {
             appendLog("⚡ 模拟场景: 用户未登录直接发起订单结算...")
             val orderId = "ORDER_" + UUID.randomUUID().toString().take(6)
             val violations = InspectorX.emit("CHECKOUT_STARTED", mapOf("orderId" to orderId))
-            appendLog("🚨 违规告警捕获: ${violations.size} 项! 观察屏幕顶部悬浮告警条与系统通知")
+            appendLog("🚨 违规告警捕获: ${violations.size} 项! 请在系统通知栏或 Monitor 业务问题页查看")
         }
 
         binding.btnRuleRate.setOnClickListener {

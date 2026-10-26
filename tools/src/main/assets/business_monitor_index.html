@@ -102,7 +102,11 @@
 <script>
     var state = { status:null, packs:[], records:[] };
     function esc(value) { var d=document.createElement('div'); d.textContent=value==null?'':String(value); return d.innerHTML; }
-    function api(path) { return fetch(path,{cache:'no-store'}).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }); }
+    function api(path) {
+        return fetch(path,{cache:'no-store'})
+            .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+            .then(function(res){ return (res && typeof res === 'object' && ('data' in res)) ? res.data : res; });
+    }
     function matcherText(m) { if(!m) return '-'; var parts=[]; if(m.eventType) parts.push(m.eventType); if(m.name) parts.push('name='+m.name); if(m.nameRegex) parts.push('name~'+m.nameRegex); if(m.pathRegex) parts.push('path~'+m.pathRegex); Object.keys(m.attributes||{}).forEach(function(k){parts.push(k+'='+m.attributes[k]);}); return parts.join(' · ')||'-'; }
     function conditionsText(items,mode) { if(!items||!items.length) return '-'; return items.map(function(c){ var v=c.value!=null?c.value:(c.values||[]).join('|'); return c.attribute+' '+c.operator+(v?' '+v:''); }).join(mode==='ANY'?'  OR  ':'  AND  '); }
     function ruleSearchText(rule) { return JSON.stringify(rule).toLowerCase(); }
@@ -127,8 +131,27 @@
     }
     function renderSummary() { var s=state.status||{}; var on=!!s.enabled; var runtime=document.getElementById('runtime'); runtime.textContent=on?'运行中':'已暂停'; runtime.className='stat-value '+(on?'status-on':'status-off'); document.getElementById('toggleBtn').textContent=on?'暂停监控':'启用监控'; document.getElementById('packCount').textContent=state.packs.length; var total=state.packs.reduce(function(n,p){return n+p.totalRules;},0), enabled=state.packs.reduce(function(n,p){return n+p.enabledRules;},0); document.getElementById('ruleCount').textContent=enabled; document.getElementById('ruleNote').textContent='共 '+total+' 条'; document.getElementById('issueCount').textContent=state.records.length; document.getElementById('severityCount').textContent=(s.criticalRecords||0)+' / '+(s.warningRecords||0); }
     function showLoadError(e) { document.getElementById('offline').style.display='block'; document.getElementById('offline').innerHTML='<strong>无法连接手机 Monitor 服务：</strong> '+esc(e.message); }
-    function loadAll() { if(location.protocol==='file:'){document.getElementById('offline').style.display='block';return;} Promise.all([api('/getAnomalyStatus'),api('/getAnomalyRules'),api('/getAnomalyRecords')]).then(function(values){state.status=values[0].status; state.packs=values[1].rulePacks||[]; state.records=values[2].records||[]; renderSummary();renderRules();renderHistory();document.getElementById('offline').style.display='none';}).catch(showLoadError); }
-    function refreshRuntime() { Promise.all([api('/getAnomalyStatus'),api('/getAnomalyRecords')]).then(function(values){state.status=values[0].status; state.records=values[1].records||[]; renderSummary();renderHistory();document.getElementById('offline').style.display='none';}).catch(showLoadError); }
+    function loadAll() {
+        if(location.protocol==='file:'){document.getElementById('offline').style.display='block';return;}
+        Promise.all([api('/getAnomalyStatus'),api('/getAnomalyRules'),api('/getAnomalyRecords')]).then(function(values){
+            var sData = values[0] || {};
+            var rData = values[1] || {};
+            var recData = values[2] || {};
+            state.status = sData.status || sData;
+            state.packs = rData.rulePacks || sData.rulePacks || [];
+            state.records = recData.records || [];
+            renderSummary();renderRules();renderHistory();document.getElementById('offline').style.display='none';
+        }).catch(showLoadError);
+    }
+    function refreshRuntime() {
+        Promise.all([api('/getAnomalyStatus'),api('/getAnomalyRecords')]).then(function(values){
+            var sData = values[0] || {};
+            var recData = values[1] || {};
+            state.status = sData.status || sData;
+            state.records = recData.records || [];
+            renderSummary();renderHistory();document.getElementById('offline').style.display='none';
+        }).catch(showLoadError);
+    }
     function toggleMonitor(){var next=!(state.status&&state.status.enabled);api('/setAnomalyEnabled?enabled='+next).then(loadAll);}
     function clearHistory(){if(!confirm('确认清空全部业务问题历史？规则不会被删除。'))return;api('/clearAnomalies').then(loadAll);}
     function switchTab(name){document.getElementById('rulesPanel').classList.toggle('active',name==='rules');document.getElementById('historyPanel').classList.toggle('active',name==='history');document.getElementById('rulesTab').classList.toggle('active',name==='rules');document.getElementById('historyTab').classList.toggle('active',name==='history');}

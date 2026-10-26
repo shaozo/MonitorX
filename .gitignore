@@ -4,3 +4,6 @@
 local.properties
 .idea/
 *.iml
+
+# Local-only Maven Central release runbook (may reference machine-specific setup).
+LOCAL_RELEASE_GUIDE.md

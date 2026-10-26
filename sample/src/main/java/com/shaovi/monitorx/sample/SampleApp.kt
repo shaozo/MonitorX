@@ -3,22 +3,19 @@ package com.shaovi.monitorx.sample
 import android.app.Application
 import android.content.Context
 import com.shaovi.monitorx.api.MonitorX
-import com.shaovi.monitorx.core.InspectorX
 
 class SampleApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
 
-        // 1. 初始化 MonitorX (在 Debug 环境自动启动抓包与悬浮服务，在 Release 环境自动 no-op)
+        // 1. 初始化 MonitorX；业务规则会从 assets/monitorx/*.json 自动加载并展示到网页端。
         MonitorX.initialize(this)
         MonitorX.setEnabled(true)
 
         // 2. 预置 SharedPreferences 数据，便于在 MonitorX 中进行 SP 检查与实时编辑
         setupSamplePreferences()
 
-        // 3. 安装业务异常规则包
-        setupInspectorRules()
     }
 
     private fun setupSamplePreferences() {
@@ -39,10 +36,4 @@ class SampleApp : Application() {
             .apply()
     }
 
-    private fun setupInspectorRules() {
-        runCatching {
-            val json = assets.open("monitorx/checkout-rules.json").bufferedReader().use { it.readText() }
-            InspectorX.installRulePack(json)
-        }
-    }
 }

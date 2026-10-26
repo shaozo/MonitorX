@@ -152,9 +152,9 @@ abstract class MonitorService {
 
     @Get("setAnomalyEnabled")
     fun setAnomalyEnabled(enabled: Boolean): Boolean {
-        com.shaovi.monitorx.anomaly.AnomalyManager.isEnabled = enabled
+        com.shaovi.monitorx.anomaly.AnomalyManager.setEnabled(enabled)
         com.shaovi.monitorx.core.FlowWatcher.enabled = enabled
-        return enabled
+        return com.shaovi.monitorx.anomaly.AnomalyManager.getStatus().enabled
     }
 
     @Get("getNewAnomalies")
@@ -202,8 +202,8 @@ abstract class MonitorService {
         timeoutMillis: Long = 60_000L,
         requestId: String = ""
     ): ApiDebugWebResponse {
-        val executor = ApiDebugBridge.executor
-            ?: return ApiDebugWebResponse(error = "业务请求执行器尚未初始化")
+        val executor = ApiDebugBridge.getEffectiveExecutor()
+            ?: return ApiDebugWebResponse(error = "业务请求执行器尚未初始化，请发起一次网络请求或配置 ApiDebugBridge.executor")
         val timeout = timeoutMillis.coerceIn(1_000L, 300_000L)
         val request = runCatching {
             val rawUrl = url.trim()

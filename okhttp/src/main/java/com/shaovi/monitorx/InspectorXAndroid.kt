@@ -31,9 +31,13 @@ object InspectorXAndroid {
     fun resetSession(sessionId: String? = null) = InspectorX.resetSession(sessionId)
 
     /**
-     * Starts a process-scoped payment watchdog after Google Play reports PURCHASED.
-     * The matching HTTP_REQUEST rule completes it as soon as noticeResult is actually invoked.
+     * Compatibility wrapper for the original payment watchdog API.
+     * New integrations should model the flow explicitly with MonitorX.emit and a rule pack.
      */
+    @Deprecated(
+        message = "Use MonitorX.emit with a payment flow rule pack",
+        replaceWith = ReplaceWith("MonitorX.emit(\"PAYMENT_SUCCEEDED\", mapOf(\"http.param.purchase_token\" to purchaseToken, \"payment.product_id\" to productId))")
+    )
     fun watchPaymentServerNotification(
         purchaseToken: String,
         productId: String = "",

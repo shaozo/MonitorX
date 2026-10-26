@@ -44,6 +44,17 @@ class MonitorInterceptor : Interceptor {
         }
 
         monitorData.requestTime = Date().formatData(TIME_LONG)
+        // Automatically learn baseUrl from host business requests for zero-config API debugging
+        if (!hasLearnedBaseUrl.get()) {
+            apiDebugBridgeRecordMethod?.let { (instance, method) ->
+                runCatching {
+                    method.invoke(instance, request.url.toString())
+                    if (request.url.scheme.startsWith("http")) {
+                        hasLearnedBaseUrl.set(true)
+                    }
+                }
+            }
+        }
         // Emit the request before network I/O. Business-flow rules can therefore distinguish
         // "the app never notified the server" from "the server call was slow or failed".
         fillRequestSnapshot(monitorData, request, readRequestBody = true)
@@ -268,4 +279,15 @@ class MonitorInterceptor : Interceptor {
         return builder.toString()
     }
 
+    companion object {
+        private val hasLearnedBaseUrl = java.util.concurrent.atomic.AtomicBoolean(false)
+        private val apiDebugBridgeRecordMethod by lazy {
+            runCatching {
+                val bridgeClass = Class.forName("com.shaovi.monitorx.api.ApiDebugBridge")
+                val recordMethod = bridgeClass.getMethod("recordTrafficUrl", String::class.java)
+                val instance = bridgeClass.getField("INSTANCE").get(null)
+                Pair(instance, recordMethod)
+            }.getOrNull()
+        }
+    }
 }

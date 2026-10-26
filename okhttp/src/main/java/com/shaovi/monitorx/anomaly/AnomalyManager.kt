@@ -27,11 +27,26 @@ object AnomalyManager {
     private val loadedRulePacks = ConcurrentHashMap<String, LoadedRulePack>()
 
     @Volatile
-    var isEnabled: Boolean = true
+    var isEnabled: Boolean = false
+        private set
+
+    @Volatile
+    private var enabledOverride: Boolean? = null
+
+    /**
+     * Configures host preference. Null means auto mode: enabled only when at least one rule exists.
+     */
+    fun configureEnabled(enabled: Boolean?) {
+        enabledOverride = enabled
+        refreshEnabledState()
+    }
+
+    fun setEnabled(enabled: Boolean) = configureEnabled(enabled)
 
     fun addRule(rule: AnomalyRule) {
         rules.removeAll { it.id == rule.id }
         rules.add(rule)
+        refreshEnabledState()
     }
 
     fun addRules(ruleList: List<AnomalyRule>) {
@@ -40,6 +55,7 @@ object AnomalyManager {
 
     fun clearRules() {
         rules.clear()
+        refreshEnabledState()
     }
 
     fun getAllRecords(): List<AnomalyRecord> {
@@ -118,6 +134,10 @@ object AnomalyManager {
 
     /** Loads a portable, declarative MonitorX rule pack from the host application's assets. */
     fun loadRulePack(context: Context, assetPath: String) {
+        loadRulePackInternal(context, assetPath)
+    }
+
+    private fun loadRulePackInternal(context: Context, assetPath: String) {
         require(assetPath.isNotBlank()) { "assetPath must not be blank" }
         val content = context.assets.open(assetPath).bufferedReader().use { it.readText() }
         val pack = RulePackLoader.decode(content)
@@ -132,6 +152,7 @@ object AnomalyManager {
             enabledRules = pack.rules.count { it.enabled },
             rules = pack.rules
         )
+        refreshEnabledState()
     }
 
     /**
@@ -144,16 +165,52 @@ object AnomalyManager {
             .orEmpty()
             .filter { it.endsWith(".json", ignoreCase = true) }
             .sorted()
-        files.forEach { file -> loadRulePack(context, "$assetDirectory/$file") }
+        files.forEach { file -> loadRulePackInternal(context, "$assetDirectory/$file") }
+        refreshEnabledState()
         return files
     }
 
+    /** Explicit host selection replaces auto-discovered core rule packs and therefore has priority. */
+    @Synchronized
+    fun loadManualRulePacks(context: Context, assetPaths: List<String>): List<String> {
+        val normalized = assetPaths.map(String::trim).filter(String::isNotEmpty).distinct()
+        replaceLoadedRulePacks()
+        normalized.forEach { loadRulePackInternal(context, it) }
+        refreshEnabledState()
+        return normalized
+    }
+
+    @Synchronized
+    fun loadManualRuleDirectory(context: Context, assetDirectory: String): List<String> {
+        require(assetDirectory.isNotBlank()) { "assetDirectory must not be blank" }
+        val files = context.assets.list(assetDirectory)
+            .orEmpty()
+            .filter { it.endsWith(".json", ignoreCase = true) }
+            .sorted()
+            .map { "$assetDirectory/$it" }
+        replaceLoadedRulePacks()
+        files.forEach { loadRulePackInternal(context, it) }
+        refreshEnabledState()
+        return files
+    }
+
+    private fun replaceLoadedRulePacks() {
+        FlowWatcher.clearRules()
+        loadedRulePacks.clear()
+    }
+
     internal fun record(record: AnomalyRecord) {
+        if (!isEnabled) return
         if (records.size >= MAX_RECORDS) {
             records.removeAt(0)
         }
         records.add(record)
         listeners.forEach { listener -> runCatching { listener.onAnomaly(record) } }
+    }
+
+    private fun refreshEnabledState() {
+        val hasRules = rules.isNotEmpty() || loadedRulePacks.values.any { it.enabledRules > 0 }
+        isEnabled = enabledOverride ?: hasRules
     }
 
     /**

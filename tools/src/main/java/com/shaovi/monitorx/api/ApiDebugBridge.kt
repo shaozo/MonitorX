@@ -2,6 +2,7 @@ package com.shaovi.monitorx.api
 
 import okhttp3.Call
 import okhttp3.Callback
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Request
 
 interface ApiDebugExecutor {
@@ -12,6 +13,14 @@ interface ApiDebugExecutor {
 object ApiDebugBridge {
     @Volatile
     var executor: ApiDebugExecutor? = null
+
+    /** Automatically captured host business client, injected by plugin without manual code. */
+    @Volatile
+    var autoClient: okhttp3.OkHttpClient? = null
+
+    /** Automatically inferred baseUrl learned from real network traffic or builder. */
+    @Volatile
+    var autoBaseUrl: String = ""
 
     /** Captured final request body after all interceptors have processed it. */
     @Volatile
@@ -29,5 +38,44 @@ object ApiDebugBridge {
         lastSentRequestBody = ""
         lastSentRequestUrl = ""
         lastSentRequestHeaders = ""
+    }
+
+    /** Learns baseUrl automatically from real outgoing requests so debug console works out-of-the-box. */
+    fun recordTrafficUrl(url: String) {
+        if (autoBaseUrl.isBlank()) {
+            runCatching {
+                val httpUrl = url.toHttpUrlOrNull() ?: return
+                val portSuffix = if (httpUrl.port != 80 && httpUrl.port != 443) ":${httpUrl.port}" else ""
+                autoBaseUrl = "${httpUrl.scheme}://${httpUrl.host}$portSuffix/"
+            }
+        }
+    }
+
+    /** Registers a captured OkHttpClient automatically as the default fallback debug executor. */
+    fun registerAutoClient(client: okhttp3.OkHttpClient, baseUrl: String = "") {
+        autoClient = client
+        if (baseUrl.isNotBlank()) autoBaseUrl = baseUrl
+    }
+
+    /** Returns user-defined custom executor if set; otherwise falls back to automatically injected executor. */
+    fun getEffectiveExecutor(): ApiDebugExecutor? {
+        val custom = executor
+        if (custom != null) return custom
+        val client = autoClient ?: return null
+        return object : ApiDebugExecutor {
+            override val baseUrl: String
+                get() = autoBaseUrl.ifBlank { "http://localhost/" }
+
+            override fun execute(request: Request, timeoutMillis: Long, callback: Callback): Call {
+                clearCapturedRequest()
+                val requestClient = client.newBuilder()
+                    .connectTimeout(timeoutMillis, java.util.concurrent.TimeUnit.MILLISECONDS)
+                    .writeTimeout(timeoutMillis, java.util.concurrent.TimeUnit.MILLISECONDS)
+                    .readTimeout(timeoutMillis, java.util.concurrent.TimeUnit.MILLISECONDS)
+                    .callTimeout(timeoutMillis, java.util.concurrent.TimeUnit.MILLISECONDS)
+                    .build()
+                return requestClient.newCall(request).also { it.enqueue(callback) }
+            }
+        }
     }
 }

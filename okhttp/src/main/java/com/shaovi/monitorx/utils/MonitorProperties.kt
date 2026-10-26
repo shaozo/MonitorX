@@ -18,6 +18,9 @@ class MonitorProperties {
         private const val KEY_WHITE_HOSTS = "monitor.whiteHosts"
         private const val KEY_BLACK_HOSTS = "monitor.blackHosts"
         private const val KEY_IS_FILTER_IPADDRESS_HOST = "monitor.isFilterIPAddressHost"
+        private const val KEY_BUSINESS_MONITORING_ENABLED = "monitor.businessMonitoringEnabled"
+        private const val KEY_BUSINESS_RULE_ASSETS = "monitor.businessRuleAssets"
+        private const val KEY_BUSINESS_RULE_DIRECTORY = "monitor.businessRuleDirectory"
 
         private const val ASSETS_FILE_NAME = "monitor.properties"
     }
@@ -34,8 +37,7 @@ class MonitorProperties {
                 return propertiesData
             }
             inputStream = context.assets.open(ASSETS_FILE_NAME)
-            if (inputStream != null) {
-                p.load(inputStream)
+            p.load(inputStream)
                 val port = p.getProperty(KEY_MONITOR_PORT)
                 val dbName = p.getProperty(KEY_MONITOR_DB_NAME)
                 val whiteContentTypes = p.getProperty(KEY_WHITE_CONTENT_TYPES)
@@ -43,6 +45,18 @@ class MonitorProperties {
                 val blackHosts = p.getProperty(KEY_BLACK_HOSTS)
                 val isFilterIPAddressHost =
                     p.getProperty(KEY_IS_FILTER_IPADDRESS_HOST)?.toBoolean() ?: false
+                val businessMonitoringEnabled = p.getProperty(KEY_BUSINESS_MONITORING_ENABLED)
+                    ?.trim()
+                    ?.takeIf { it.equals("true", true) || it.equals("false", true) }
+                    ?.toBoolean()
+                val businessRuleAssets = p.getProperty(KEY_BUSINESS_RULE_ASSETS)
+                    .orEmpty()
+                    .split(',')
+                    .map(String::trim)
+                    .filter(String::isNotEmpty)
+                val businessRuleDirectory = p.getProperty(KEY_BUSINESS_RULE_DIRECTORY)
+                    ?.trim()
+                    ?.takeIf(String::isNotEmpty)
 
                 propertiesData =
                     PropertiesData(
@@ -51,9 +65,11 @@ class MonitorProperties {
                         whiteContentTypes,
                         whiteHosts,
                         blackHosts,
-                        isFilterIPAddressHost
+                        isFilterIPAddressHost,
+                        businessMonitoringEnabled,
+                        businessRuleAssets,
+                        businessRuleDirectory
                     )
-            }
         } catch (e: IOException) {
             if (e is FileNotFoundException) {
                 Log.d(TAG, "not found monitor.properties")
