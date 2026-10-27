@@ -28,13 +28,26 @@ abstract class OkHttpTransform : AsmClassVisitorFactory<InstrumentationParameter
     }
 
     private fun shouldIncludeClass(className: String, includePackages: Array<String>?): Boolean {
-        return includePackages?.isNotEmpty() == true && includePackages.any { className.contains(it) }
+        return includePackages?.isNotEmpty() == true && includePackages.any { matchesClassPattern(className, it) }
     }
 
     private fun shouldExcludeClass(className: String, excludePackages: Array<String>?): Boolean {
-        return excludePackages?.isNotEmpty() == true && excludePackages.any {
-            val regex = it.replace(".", "\\.").replace("*", ".*")
-            Regex(regex).matches(className)
+        return excludePackages?.any { matchesClassPattern(className, it) } == true
+    }
+
+    /**
+     * Matches a fully-qualified class name. A plain package matches itself and descendants;
+     * '*' remains available for callers that need a glob inside the pattern.
+     */
+    private fun matchesClassPattern(className: String, configuredPattern: String): Boolean {
+        val pattern = configuredPattern.trim()
+        if (pattern.isEmpty()) return false
+        if ('*' !in pattern) {
+            return className == pattern || className.startsWith("$pattern.")
         }
+        val regex = pattern
+            .split('*')
+            .joinToString(".*") { Regex.escape(it) }
+        return Regex("^$regex$").matches(className)
     }
 }

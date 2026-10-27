@@ -45,6 +45,14 @@ object ApiDebugBridge {
         if (autoBaseUrl.isBlank()) {
             runCatching {
                 val httpUrl = url.toHttpUrlOrNull() ?: return
+                val host = httpUrl.host.lowercase()
+                val isInfrastructureOrSdk = listOf(
+                    "aliyuncs.com", "qcloud.com", "myqcloud.com", "amazonaws.com",
+                    "google.com", "googleapis.com", "facebook.com", "crashlytics.com", "zego.im"
+                ).any { rule -> host == rule || host.endsWith(".$rule") }
+                if (isInfrastructureOrSdk) {
+                    return
+                }
                 val portSuffix = if (httpUrl.port != 80 && httpUrl.port != 443) ":${httpUrl.port}" else ""
                 autoBaseUrl = "${httpUrl.scheme}://${httpUrl.host}$portSuffix/"
             }

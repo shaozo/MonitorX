@@ -23,6 +23,7 @@ OkHttpPlugin {
     excludePackages = listOf("com.google.*", "com.facebook.*").toTypedArray()
     injectionPoint = "build"
     insertMode = "before"
+    captureOnlyBusinessClient = true
 }
 ```
 
@@ -41,6 +42,28 @@ OkHttpPlugin {
 - 默认值：`emptyArray()`
 - 作用：只处理命中的类
 - 说明：当前插件里 `includePackages` 优先级高于 `excludePackages`
+
+## 第三方 SDK 过滤
+
+抓包过滤建议在 `assets/monitor.properties` 中按 host 配置，不依赖 SDK 的实现类名：
+
+```properties
+# 只抓取业务域名（推荐，逗号分隔）
+monitor.whiteHosts=api.example.com,upload.example.com
+
+# 或额外排除第三方域名
+monitor.blackHosts=log.vendor.com,ads.vendor.com
+
+# 是否启用 MonitorX 内置的云存储/统计 SDK 域名黑名单，默认 true
+monitor.useDefaultBlackHosts=true
+
+```
+
+显式 `whiteHosts` 可覆盖内置黑名单；显式 `blackHosts` 始终优先，便于业务方完全控制。
+
+`captureOnlyBusinessClient` 默认为 `true`，只将含解密、公参或自定义锚点拦截器的 client
+用于接口调试，避免误选第三方 SDK client。项目的业务 client 没有这类拦截器时，
+可在 `OkHttpPlugin` 中显式设为 `false`。
 
 ### `includeMethods`
 

@@ -21,6 +21,20 @@ class BusinessIssuesFragment : Fragment() {
     private val binding get() = requireNotNull(_binding)
     private val adapter = IssueAdapter()
 
+    private val anomalyListener = object : com.shaovi.monitorx.anomaly.AnomalyListener {
+        override fun onAnomaly(record: AnomalyRecord) {
+            activity?.runOnUiThread {
+                if (_binding != null) refresh()
+            }
+        }
+
+        override fun onCleared() {
+            activity?.runOnUiThread {
+                if (_binding != null) refresh()
+            }
+        }
+    }
+
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, state: Bundle?): View =
         FragmentBusinessIssuesBinding.inflate(inflater, container, false).also { _binding = it }.root
 
@@ -33,6 +47,7 @@ class BusinessIssuesFragment : Fragment() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = refresh()
             override fun afterTextChanged(s: Editable?) = Unit
         })
+        AnomalyManager.addListener(anomalyListener)
         refresh()
     }
 
@@ -41,7 +56,8 @@ class BusinessIssuesFragment : Fragment() {
         if (_binding != null) refresh()
     }
 
-    private fun refresh() {
+    fun refresh() {
+        val binding = _binding ?: return
         val all = AnomalyManager.getAllRecords()
         val query = binding.etSearch.text?.toString().orEmpty().trim()
         val visible = if (query.isBlank()) all else all.filter { record ->
@@ -63,6 +79,7 @@ class BusinessIssuesFragment : Fragment() {
     }
 
     override fun onDestroyView() {
+        AnomalyManager.removeListener(anomalyListener)
         binding.rvIssues.adapter = null
         _binding = null
         super.onDestroyView()

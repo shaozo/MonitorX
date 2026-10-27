@@ -45,7 +45,8 @@ class MonitorInterceptor : Interceptor {
 
         monitorData.requestTime = Date().formatData(TIME_LONG)
         // Automatically learn baseUrl from host business requests for zero-config API debugging
-        if (!hasLearnedBaseUrl.get()) {
+        val host = request.url.host
+        if (!hasLearnedBaseUrl.get() && host.isWhiteHosts() && !host.isBlackHosts()) {
             apiDebugBridgeRecordMethod?.let { (instance, method) ->
                 runCatching {
                     method.invoke(instance, request.url.toString())
@@ -243,29 +244,57 @@ class MonitorInterceptor : Interceptor {
         }
     }
 
+    private fun isEligibleForRequestBodySnapshot(request: Request, requestBody: okhttp3.RequestBody): Boolean {
+        if (bodyHasUnknownEncoding(request.headers) || requestBody.isDuplex() || requestBody.isOneShot()) {
+            return false
+        }
+        val mediaType = requestBody.contentType()
+        val type = mediaType?.type?.lowercase()
+        val subtype = mediaType?.subtype?.lowercase()
+        // Binary, stream, or media types must not be consumed into buffer, as consuming can close the underlying InputStream
+        if (type in listOf("image", "video", "audio") || subtype?.contains("octet-stream") == true) {
+            return false
+        }
+        val className = requestBody.javaClass.name
+        if (className.contains("oss", ignoreCase = true) || className.contains("progress", ignoreCase = true)) {
+            return false
+        }
+        val length = runCatching { requestBody.contentLength() }.getOrDefault(-1L)
+        // Unknown length cannot be safely bounded and must never be copied into an in-memory buffer.
+        return length in 0..maxContentLength
+    }
+
     private fun readRequestBody(request: Request): String? {
         val requestBody = request.body ?: return null
-        if (bodyHasUnknownEncoding(request.headers) || requestBody.isDuplex() || requestBody.isOneShot()) {
-            return null
-        }
-        return when (requestBody) {
-            is MultipartBody -> buildMultipartBodyContent(requestBody)
-            else -> {
-                val buffer = Buffer()
-                requestBody.writeTo(buffer)
-                val charset: Charset =
-                    requestBody.contentType()?.charset(StandardCharsets.UTF_8)
-                        ?: StandardCharsets.UTF_8
-                if (buffer.isProbablyUtf8()) buffer.readString(charset) else null
+        if (!isEligibleForRequestBodySnapshot(request, requestBody)) {
+            val length = runCatching { requestBody.contentLength() }.getOrDefault(-1L)
+            val contentType = requestBody.contentType()?.toString()
+            return when {
+                length > maxContentLength -> "[Large Request Body: $length bytes]"
+                !contentType.isNullOrBlank() -> "[Binary/Stream Body: $contentType]"
+                else -> "[Binary/Stream Body]"
             }
         }
+        return runCatching {
+            when (requestBody) {
+                is MultipartBody -> buildMultipartBodyContent(requestBody)
+                else -> {
+                    val buffer = Buffer()
+                    requestBody.writeTo(buffer)
+                    val charset: Charset =
+                        requestBody.contentType()?.charset(StandardCharsets.UTF_8)
+                            ?: StandardCharsets.UTF_8
+                    if (buffer.isProbablyUtf8()) buffer.readString(charset) else null
+                }
+            }
+        }.getOrNull()
     }
 
     private fun buildMultipartBodyContent(requestBody: MultipartBody): String {
         val builder = StringBuilder()
         requestBody.parts.forEach { part ->
-            val isStream =
-                part.body.contentType()?.toString()?.contains("otcet-stream") == true
+            val contentTypeStr = part.body.contentType()?.toString()
+            val isStream = contentTypeStr?.contains("octet-stream") == true || contentTypeStr?.contains("otcet-stream") == true
             val key = part.headers?.value(0)
             if (isStream) {
                 builder.append(key).append("; value=文件流\n")

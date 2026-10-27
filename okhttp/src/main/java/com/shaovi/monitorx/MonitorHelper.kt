@@ -53,9 +53,11 @@ object MonitorHelper {
         interceptors: MutableList<Interceptor>,
         insertMode: String = "before",
         anchorInterceptorClassName: String = "",
+        captureOnlyBusinessClient: Boolean = true,
         builder: okhttp3.OkHttpClient.Builder? = null,
         existingEventListenerFactory: okhttp3.EventListener.Factory? = null
     ) {
+        this.captureOnlyBusinessClient = captureOnlyBusinessClient
         if (builder != null && existingEventListenerFactory != null) {
             builder.eventListenerFactory(
                 com.shaovi.monitorx.listener.MonitorEventListener.factory(existingEventListenerFactory)
@@ -130,7 +132,11 @@ object MonitorHelper {
     fun captureBuiltClient(client: okhttp3.OkHttpClient) {
         val candidatePriority = captureCurrentBuild.get() ?: 0
         captureCurrentBuild.remove()
-        if (candidatePriority <= capturedClientPriority) return
+        // 默认只选择含解密/公参/自定义锚点拦截器的业务 client，避免把 SDK client
+        // 用作接口调试器。无此类拦截器的应用可显式关闭该限制。
+        if (candidatePriority <= capturedClientPriority ||
+            (captureOnlyBusinessClient && candidatePriority < 2)
+        ) return
 
         val registered = runCatching {
             val bridgeClass = Class.forName("com.shaovi.monitorx.api.ApiDebugBridge")
@@ -147,6 +153,10 @@ object MonitorHelper {
     var whiteContentTypes: String? = null
     var whiteHosts: String? = null
     var blackHosts: String? = null
+    /** Whether default SDK/infrastructure host exclusions are applied. */
+    var useDefaultBlackHosts: Boolean = true
+    /** Only auto-register clients that contain a recognized business interceptor. */
+    var captureOnlyBusinessClient: Boolean = true
     var isFilterIPAddressHost: Boolean = false
 
     var isOpenMonitor = true
@@ -190,6 +200,7 @@ object MonitorHelper {
             whiteContentTypes = if (contentTypes.isNullOrBlank()) defaultContentTypes else contentTypes
             whiteHosts = propertiesData?.whiteHosts
             blackHosts = propertiesData?.blackHosts
+            useDefaultBlackHosts = propertiesData?.useDefaultBlackHosts ?: true
             port = propertiesData?.port?.toInt() ?: 0
             isFilterIPAddressHost = propertiesData?.isFilterIPAddressHost ?: false
             initMonitorDataDao(context, dbName)

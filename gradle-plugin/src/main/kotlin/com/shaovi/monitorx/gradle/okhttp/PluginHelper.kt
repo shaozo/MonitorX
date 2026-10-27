@@ -30,4 +30,6 @@ object PluginHelper {
             else -> ""
         }
     }
+
+    fun captureOnlyBusinessClient(): Boolean = extension?.captureOnlyBusinessClient ?: true
 }

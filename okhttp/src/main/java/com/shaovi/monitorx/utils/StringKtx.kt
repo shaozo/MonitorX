@@ -19,17 +19,36 @@ fun String?.isWhiteContentType(): Boolean {
 
 fun String?.isWhiteHosts(): Boolean {
     val whiteHosts = MonitorHelper.whiteHosts
-    val intercept = this.isNullOrBlank() || whiteHosts.isNullOrBlank() || whiteHosts.contains(this)
+    if (this.isNullOrBlank() || whiteHosts.isNullOrBlank()) return true
+    val whiteList = whiteHosts.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+    val intercept = whiteList.any { matchesHostRule(this, it) }
     println("${MonitorHelper.TAG}---->whiteHosts = $whiteHosts  当前host= $this   是否在白名单:$intercept")
     return intercept
 }
 
 fun String?.isBlackHosts(): Boolean {
-    val blackHosts = MonitorHelper.blackHosts
     if (this.isNullOrBlank()) return false
-    val intercept = !blackHosts.isNullOrBlank() && blackHosts.contains(this)
+    // 显式白名单优先级高于默认黑名单：如果用户明确配置了 whiteHosts 且包含当前 host，则不被 defaultBlackHosts 拦截
+    val whiteHosts = MonitorHelper.whiteHosts
+    val whiteList = whiteHosts.orEmpty().split(",").map { it.trim() }.filter { it.isNotEmpty() }
+    val isExplicitWhite = whiteList.isNotEmpty() && whiteList.any { matchesHostRule(this, it) }
+
+    val blackHosts = MonitorHelper.blackHosts
+    val blackList = blackHosts.orEmpty().split(",").map { it.trim() }.filter { it.isNotEmpty() }
+    val isConfigured = blackList.any { matchesHostRule(this, it) }
+    val isDefault = MonitorHelper.useDefaultBlackHosts &&
+        !isExplicitWhite &&
+        defaultBlackHosts.any { matchesHostRule(this, it) }
+    val intercept = isConfigured || isDefault
     println("${MonitorHelper.TAG}---->blackHosts = $blackHosts  当前host= $this   是否在黑名单:$intercept")
     return intercept
+}
+
+private fun matchesHostRule(host: String, configuredRule: String): Boolean {
+    val rule = configuredRule.trim().lowercase().removePrefix("*.").trimStart('.').trimEnd('.')
+    if (rule.isEmpty()) return false
+    val normalizedHost = host.lowercase().trimEnd('.')
+    return normalizedHost == rule || normalizedHost.endsWith(".$rule")
 }
 
 fun String?.isSkipInterceptByHost(): Boolean {

@@ -18,6 +18,7 @@ class MonitorProperties {
         private const val KEY_WHITE_HOSTS = "monitor.whiteHosts"
         private const val KEY_BLACK_HOSTS = "monitor.blackHosts"
         private const val KEY_IS_FILTER_IPADDRESS_HOST = "monitor.isFilterIPAddressHost"
+        private const val KEY_USE_DEFAULT_BLACK_HOSTS = "monitor.useDefaultBlackHosts"
         private const val KEY_BUSINESS_MONITORING_ENABLED = "monitor.businessMonitoringEnabled"
         private const val KEY_BUSINESS_RULE_ASSETS = "monitor.businessRuleAssets"
         private const val KEY_BUSINESS_RULE_DIRECTORY = "monitor.businessRuleDirectory"
@@ -45,6 +46,8 @@ class MonitorProperties {
                 val blackHosts = p.getProperty(KEY_BLACK_HOSTS)
                 val isFilterIPAddressHost =
                     p.getProperty(KEY_IS_FILTER_IPADDRESS_HOST)?.toBoolean() ?: false
+                val useDefaultBlackHosts =
+                    p.getProperty(KEY_USE_DEFAULT_BLACK_HOSTS)?.toBooleanStrictOrNull() ?: true
                 val businessMonitoringEnabled = p.getProperty(KEY_BUSINESS_MONITORING_ENABLED)
                     ?.trim()
                     ?.takeIf { it.equals("true", true) || it.equals("false", true) }
@@ -66,6 +69,7 @@ class MonitorProperties {
                         whiteHosts,
                         blackHosts,
                         isFilterIPAddressHost,
+                        useDefaultBlackHosts,
                         businessMonitoringEnabled,
                         businessRuleAssets,
                         businessRuleDirectory

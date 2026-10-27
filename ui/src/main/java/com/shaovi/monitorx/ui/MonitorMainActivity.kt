@@ -36,6 +36,12 @@ class MonitorMainActivity : AppCompatActivity(), NavigationBarView.OnItemSelecte
 
     private lateinit var binding: ActivityMonitorMainBinding
 
+    private fun getBusinessIssuesFragment(): BusinessIssuesFragment? {
+        return supportFragmentManager.fragments
+            .filterIsInstance<BusinessIssuesFragment>()
+            .firstOrNull()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMonitorMainBinding.inflate(layoutInflater)
@@ -113,6 +119,7 @@ class MonitorMainActivity : AppCompatActivity(), NavigationBarView.OnItemSelecte
                         thread {
                             AnomalyManager.clearRecords()
                             runOnUiThread {
+                                getBusinessIssuesFragment()?.refresh()
                                 Snackbar.make(binding.root, "已成功清空业务异常记录", Snackbar.LENGTH_SHORT)
                                     .setAnchorView(binding.bottomNavigationView)
                                     .show()
@@ -132,6 +139,7 @@ class MonitorMainActivity : AppCompatActivity(), NavigationBarView.OnItemSelecte
                             ImMessageCollector.clear()
                             AnomalyManager.clearRecords()
                             runOnUiThread {
+                                getBusinessIssuesFragment()?.refresh()
                                 Snackbar.make(binding.root, "已成功清空全部调试数据", Snackbar.LENGTH_SHORT)
                                     .setAnchorView(binding.bottomNavigationView)
                                     .show()
@@ -171,7 +179,10 @@ class MonitorMainActivity : AppCompatActivity(), NavigationBarView.OnItemSelecte
                 super.onPageSelected(position)
                 when (position) {
                     0 -> binding.bottomNavigationView.selectedItemId = R.id.navigation_monitor
-                    1 -> binding.bottomNavigationView.selectedItemId = R.id.navigation_business_issues
+                    1 -> {
+                        binding.bottomNavigationView.selectedItemId = R.id.navigation_business_issues
+                        getBusinessIssuesFragment()?.refresh()
+                    }
                     2 -> binding.bottomNavigationView.selectedItemId = R.id.navigation_sharedPrefs
                     3 -> binding.bottomNavigationView.selectedItemId = R.id.navigation_tools
                 }

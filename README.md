@@ -10,7 +10,7 @@ MonitorX 是面向 Android 开发与测试环境的诊断工具箱：在应用�
 OkHttp 请求、运行时性能、SharedPreferences、IM 消息和业务规则异常，并提供接口重放、
 Mock 与弱网调试。InspectorX 是其中可脱离 Android 运行的规则引擎。
 
-> 当前版本：`0.1.2` · [Maven Central](https://central.sonatype.com/namespace/io.github.shaozo.monitorx) · [GitHub 仓库](https://github.com/shaozo/MonitorX) · 最低 Android 版本：API 23 · 许可证：Apache-2.0
+> 当前版本：`0.1.3` · [Maven Central](https://central.sonatype.com/namespace/io.github.shaozo.monitorx) · [GitHub 仓库](https://github.com/shaozo/MonitorX) · 最低 Android 版本：API 23 · 许可证：Apache-2.0
 
 ## 中文
 
@@ -33,7 +33,7 @@ MonitorX 会记录请求内容、响应内容和 SharedPreferences，并可在�
 
 正式版本发布在 [Maven Central](https://central.sonatype.com/namespace/io.github.shaozo.monitorx)，
 源码、Issue 和 Release 记录位于 [GitHub 仓库](https://github.com/shaozo/MonitorX)。Maven
-group 为 `io.github.shaozo.monitorx`，当前版本为 `0.1.2`。
+group 为 `io.github.shaozo.monitorx`，当前版本为 `0.1.3`。
 
 在应用模块的 `build.gradle.kts` 中应用插件。公共 API 进入所有变体，完整实现只进入 Debug：
 
@@ -41,12 +41,12 @@ group 为 `io.github.shaozo.monitorx`，当前版本为 `0.1.2`。
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    id("io.github.shaozo.monitorx") version "0.1.2"
+    id("io.github.shaozo.monitorx") version "0.1.3"
 }
 
 dependencies {
-    implementation("io.github.shaozo.monitorx:monitor-api:0.1.2")
-    debugImplementation("io.github.shaozo.monitorx:monitor-ui:0.1.2")
+    implementation("io.github.shaozo.monitorx:monitor-api:0.1.3")
+    debugImplementation("io.github.shaozo.monitorx:monitor-ui:0.1.3")
 }
 
 MonitorX {
@@ -148,7 +148,7 @@ monitor-ui -> monitor-tools -> monitor-runtime-android
 不需要 UI 和 PC 工具时，可以只使用较小的抓包运行时：
 
 ```kotlin
-debugImplementation("io.github.shaozo.monitorx:monitor-okhttp:0.1.2")
+debugImplementation("io.github.shaozo.monitorx:monitor-okhttp:0.1.3")
 ```
 
 ### InspectorX 业务规则
@@ -248,18 +248,18 @@ runtime only to debug builds:
 
 Published artifacts are available from [Maven Central](https://central.sonatype.com/namespace/io.github.shaozo.monitorx).
 Source code, issues, and releases are hosted in the [GitHub repository](https://github.com/shaozo/MonitorX).
-The Maven group is `io.github.shaozo.monitorx`, and the current version is `0.1.2`.
+The Maven group is `io.github.shaozo.monitorx`, and the current version is `0.1.3`.
 
 ```kotlin
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    id("io.github.shaozo.monitorx") version "0.1.2"
+    id("io.github.shaozo.monitorx") version "0.1.3"
 }
 
 dependencies {
-    implementation("io.github.shaozo.monitorx:monitor-api:0.1.2")
-    debugImplementation("io.github.shaozo.monitorx:monitor-ui:0.1.2")
+    implementation("io.github.shaozo.monitorx:monitor-api:0.1.3")
+    debugImplementation("io.github.shaozo.monitorx:monitor-ui:0.1.3")
 }
 
 MonitorX {

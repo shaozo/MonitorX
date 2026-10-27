@@ -117,6 +117,7 @@ object AnomalyManager {
 
     fun clearRecords() {
         records.clear()
+        listeners.forEach { listener -> runCatching { listener.onCleared() } }
     }
 
     fun addListener(listener: AnomalyListener) {

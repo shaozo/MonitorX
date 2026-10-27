@@ -15,6 +15,7 @@ class OkHttpMethodAdapter(methodVisitor: MethodVisitor?, access: Int, name: Stri
             it.visitFieldInsn(GETFIELD, "okhttp3/OkHttpClient\$Builder", "interceptors", "Ljava/util/List;")
             it.visitLdcInsn(PluginHelper.insertMode())
             it.visitLdcInsn(PluginHelper.anchorInterceptorClassName())
+            it.visitLdcInsn(PluginHelper.captureOnlyBusinessClient())
             it.visitVarInsn(ALOAD, 0)
             it.visitVarInsn(ALOAD, 0)
             it.visitFieldInsn(GETFIELD, "okhttp3/OkHttpClient\$Builder", "eventListenerFactory", "Lokhttp3/EventListener\$Factory;")
@@ -22,7 +23,7 @@ class OkHttpMethodAdapter(methodVisitor: MethodVisitor?, access: Int, name: Stri
                 INVOKEVIRTUAL,
                 "com/shaovi/monitorx/MonitorHelper",
                 "installHookInterceptors",
-                "(Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Lokhttp3/OkHttpClient\$Builder;Lokhttp3/EventListener\$Factory;)V",
+                "(Ljava/util/List;Ljava/lang/String;Ljava/lang/String;ZLokhttp3/OkHttpClient\$Builder;Lokhttp3/EventListener\$Factory;)V",
                 false
             )
         }
